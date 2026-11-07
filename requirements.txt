@@ -48,7 +48,7 @@ playwright==1.64.1
     # via -r requirements.in
 pydantic==2.14.2
     # via fastapi
-pydantic-core==2.50.2
+pydantic-core==2.50.4
     # via pydantic
 pyee==14.0.0
     # via playwright

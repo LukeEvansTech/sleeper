@@ -24,6 +24,8 @@ from .db import DB
 HERE = Path(__file__).resolve().parent
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,120}$")
 RATING_ORDER = {"great": 0, "good": 1, "unknown": 2, "fair": 3, "high": 4}
+# A deal whose photo shows another card stays off the deals list, as it stays out of alerts.
+SHOWN = "coalesce(json_extract(art, '$.verdict'), '') != 'differs'"
 
 
 def money(v) -> str:
@@ -231,7 +233,9 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             "SELECT strftime('%s', finished) AS t FROM runs WHERE status = 'success' AND searches > 0 "
             "AND alerts NOT LIKE 'failed%' AND alerts NOT LIKE '%failed:%' ORDER BY id DESC LIMIT 1"
         )
-        live = db.one("SELECT count(*) AS n FROM listings WHERE active = 1 AND deal = 1")
+        live = db.one(
+            f"SELECT count(*) AS n FROM listings WHERE active = 1 AND deal = 1 AND {SHOWN}"
+        )
         wants = db.one("SELECT count(*) AS n FROM wants WHERE enabled = 1")
         return (
             "# HELP sleeper_last_success_timestamp_seconds End of the last sweep that searched "
@@ -264,7 +268,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             sql += " AND want_id = ?"
             args.append(want)
         if show == "deals":
-            sql += " AND deal = 1"
+            sql += f" AND deal = 1 AND {SHOWN}"
         rows = scored([dict(r) for r in db.all(sql, *args)])
         if set:
             rows = [r for r in rows if r["want"].get("set") == set]
@@ -396,7 +400,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         counts = {
             (r["want_id"]): (r["n"], r["d"])
             for r in db.all(
-                "SELECT want_id, count(*) AS n, sum(deal) AS d FROM listings WHERE active = 1 "
+                f"SELECT want_id, count(*) AS n, sum(deal AND {SHOWN}) AS d FROM listings WHERE active = 1 "
                 "GROUP BY want_id"
             )
         }
@@ -604,7 +608,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         counts = {
             r["want_id"]: (r["n"], r["d"] or 0)
             for r in db.all(
-                "SELECT want_id, count(*) AS n, sum(deal) AS d FROM listings WHERE active = 1 "
+                f"SELECT want_id, count(*) AS n, sum(deal AND {SHOWN}) AS d FROM listings WHERE active = 1 "
                 "GROUP BY want_id"
             )
         }
@@ -623,7 +627,10 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
                 }
             )
         deals = scored(
-            [dict(r) for r in db.all("SELECT * FROM listings WHERE active = 1 AND deal = 1")]
+            [
+                dict(r)
+                for r in db.all(f"SELECT * FROM listings WHERE active = 1 AND deal = 1 AND {SHOWN}")
+            ]
         )
         deals.sort(key=lambda r: (RATING_ORDER.get(r["v"].rating, 9), r["v"].total))
         deals_out = [

@@ -1,6 +1,7 @@
 """End to end: import wants, sweep with a fake browser, open the alert's deal page."""
 
 import datetime as dt
+import json
 
 import pytest
 from fastapi.testclient import TestClient
@@ -689,3 +690,29 @@ def test_sweep_stores_when_each_auction_ends(env, monkeypatch):
     assert got["111"]["time_left"] == "1d 2h left"
     page = client.get("/?show=all&sort=ending").text
     assert page.index("/deal/333/") < page.index("/deal/111/")
+
+
+def test_deals_list_hides_a_photo_of_another_card(env):
+    _, db, client = env
+    client.post(
+        "/api/import",
+        json={"wants": [{"set": "EVA", "who": "Rei", "q": "rei", "max": {"any": 300}}]},
+    )
+    wid = db.wants()[0]["_id"]
+    for item_id, verdict in (("ok1", "match"), ("bad1", "differs"), ("new1", None)):
+        art = json.dumps({"verdict": verdict}) if verdict else None
+        with db.tx() as c:
+            c.execute(
+                "INSERT INTO listings (item_id, kind, want_id, title, usd, star, deal, art, "
+                "first_seen, last_seen) VALUES (?, 'psa', ?, 'Rei', 100, '-', 1, ?, "
+                "'2026-11-08T12:00:00', '2026-11-08T12:00:00')",
+                (item_id, wid, art),
+            )
+    deals = client.get("/").text
+    assert "/deal/ok1/" in deals and "/deal/new1/" in deals
+    assert "/deal/bad1/" not in deals
+    assert "/deal/bad1/" in client.get("/?show=all").text
+    assert "sleeper_live_deals 2" in client.get("/metrics").text
+    search = client.get("/api/search").json()
+    assert sorted(d["href"].split("/")[2] for d in search["deals"]) == ["new1", "ok1"]
+    assert search["wants"][0]["side"] == "2 deals, 3 live"

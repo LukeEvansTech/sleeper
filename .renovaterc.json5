@@ -1,4 +1,12 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   extends: ["github>LukeEvansTech/renovate-config"],
+  packageRules: [
+    {
+      // pydantic pins one exact pydantic-core, so either bump alone fails to install.
+      description: "Update pydantic and pydantic-core together",
+      matchPackageNames: ["pydantic", "pydantic-core"],
+      groupName: "pydantic",
+    },
+  ],
 }

@@ -16,7 +16,7 @@ click==8.5.1
     # via
     #   apprise
     #   uvicorn
-croniter==6.2.4
+croniter==7.0.0
     # via -r requirements.in
 fastapi==0.162.0
     # via -r requirements.in

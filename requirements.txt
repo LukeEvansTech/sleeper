@@ -18,7 +18,7 @@ click==8.5.1
     #   uvicorn
 croniter==6.2.4
     # via -r requirements.in
-fastapi==0.162.0
+fastapi==0.162.1
     # via -r requirements.in
 greenlet==3.5.6
     # via playwright

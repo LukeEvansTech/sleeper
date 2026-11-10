@@ -71,14 +71,8 @@ def parse(item: dict, now: dt.datetime | None = None) -> dict:
         sold_qty = 1 if bids > 0 else 0  # an auction's sold count is missing: bids decide
     if item.get("reservePriceMet") is False:  # bids that never met the reserve are not a sale
         sold_qty = 0
-    if (
-        ended
-        and auction
-        and (bids or 0) > 0
-        and not sold_qty
-        and not out_of_stock
-        and item.get("reservePriceMet") is not False
-    ):
+    settling = (bids or 0) > 0 and not sold_qty and item.get("reservePriceMet") is not False
+    if ended and auction and settling and not out_of_stock:
         ended = False  # bids but no sale recorded yet: eBay may still be settling it, ask again
     if ended and sold_qty is None:
         ended = False  # no sales count at all: unresolved, not "unsold"

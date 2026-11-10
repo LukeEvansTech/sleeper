@@ -35,15 +35,14 @@ def test_tiles_say_auction_or_buy_it_now_and_auctions_link_to_gixen(env):
     assert "autosnipe.php?itemid=111" in client.get("/deal/111/psa").text
 
 
-def test_the_gixen_bid_is_the_deal_limit_and_never_zero_or_infinite():
+def test_the_gixen_bid_is_the_max_bid_and_never_zero_or_infinite():
     class V:
-        def __init__(self, max_bid):
-            self.max_bid = max_bid
+        def __init__(self, snipe):
+            self.snipe = snipe
 
-    assert web.snipe_bid({"v": V(462.0), "cap": 470, "ship": 5}) == 462
-    assert web.snipe_bid({"v": V(None), "cap": 470, "ship": 5.5}) == 464  # ceiling less delivery
-    assert web.snipe_bid({"v": V(0.0), "cap": 470}) is None  # no bid keeps it a deal
-    assert web.snipe_bid({"v": V(None), "cap": float("inf")}) is None
+    assert web.snipe_bid({"v": V(461.98)}) == 461.98
+    assert web.snipe_bid({"v": V(None)}) is None  # no bid keeps it a deal, or below the minimum
+    assert web.snipe_bid({"v": V(0.0)}) is None
     assert web.gixen_link("111", None) == "https://www.gixen.com/autosnipe.php?itemid=111"
 
 

@@ -18,6 +18,7 @@
   <nav>
     {% set here = request.url.path %}
     <a href="/" {{ 'aria-current=page' if here == '/' or here.startswith('/deal') }}>Deals</a>
+    <a href="/ended" {{ 'aria-current=page' if here.startswith('/ended') }}>Ended</a>
     <a href="/wants" {{ 'aria-current=page' if here.startswith('/wants') and here != '/wants/new' }}>Wants</a>
     <a href="/wants/new" {{ 'aria-current=page' if here == '/wants/new' }}>Add card</a>
     <a href="/summary" {{ 'aria-current=page' if here.startswith('/summary') }}>Summary</a>

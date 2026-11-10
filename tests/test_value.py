@@ -88,3 +88,110 @@ def test_max_bid_never_rounds_past_the_cutoff():
 def test_infinite_ceiling_gives_no_bid_rather_than_crashing():
     v = value.assess(listing(usd=50, cap=float("inf"), auction=1), W, {}, [], {}, 39.99, 6)
     assert v.max_bid is None
+
+
+def test_snipe_bid_skips_round_amounts_and_stays_under_the_limit():
+    assert value.snipe_bid(103.00) == 102.98  # .00 and .99 are where other bidders sit
+    assert value.snipe_bid(102.87) == 102.87
+    assert value.snipe_bid(50.05) == 50.04
+    assert value.snipe_bid(10.01) == 9.98
+    assert value.snipe_bid(77.23) == 77.23
+    assert value.snipe_bid(0.0) is None and value.snipe_bid(float("inf")) is None
+    for limit in (1.07, 33.3, 250.1, 999.999):  # never above the limit, never a skipped ending
+        got = value.snipe_bid(limit)
+        c = round(got * 100) % 100
+        assert got <= limit and c % 5 and c not in (1, 99)
+
+
+def test_snipe_bid_is_none_below_the_next_minimum_bid():
+    assert value.snipe_bid(102.98, current=100.0) == 102.98  # 100 + 2.50 is 102.50
+    assert value.snipe_bid(102.40, current=100.0) is None
+    assert value.snipe_bid(102.50, current=100.0) is None  # steps down to 102.48: under the minimum
+    assert value.snipe_bid(20.04, current=20.04, bids=0) == 20.04
+    assert value.snipe_bid(20.04, current=20.04, bids=1) is None
+    assert [value.increment(x) for x in (0.5, 3, 30, 120, 300, 600, 1500, 3000, 6000)] == [
+        0.05, 0.25, 1, 2.5, 5, 10, 25, 50, 100,
+    ]  # fmt: skip
+
+
+NOW = dt.datetime(2026, 11, 10, 12, 0)
+
+
+def auction(usd, bids="3 bids", hours=30, **kw):
+    ends = (NOW + dt.timedelta(hours=hours)).isoformat(timespec="minutes")
+    return {**listing(usd=usd, auction=1, **kw), "bids": bids, "ends": ends}
+
+
+def test_early_low_bid_is_not_a_deal_while_the_auction_runs():
+    cmp = value.comps(sold("psa", "2", 700, 720, 740), TODAY)
+    a = auction(33, ship=0, cap=200)  # $33 now, but these finish near $720
+    v = value.assess(a, W, cmp, [], {}, 39.99, 6, now=NOW)
+    assert not v.is_deal and v.expected == 720 and v.rating in ("fair", "high")
+    assert "likely to finish near $720" in v.advice and "bid up to" in v.advice
+    # the same listing as buy it now, or once the auction is over, is rated on its price
+    assert value.assess({**a, "auction": 0}, W, cmp, [], {}, 39.99, 6, now=NOW).is_deal
+    done = auction(33, hours=-1, cap=200)
+    assert value.assess(done, W, cmp, [], {}, 39.99, 6, now=NOW).is_deal
+
+
+def test_auction_without_comps_is_a_deal_only_in_its_final_hour():
+    early = value.assess(auction(10, hours=30, cap=200), W, {}, [], {}, 39.99, 6, now=NOW)
+    assert early.rating == "unknown" and not early.is_deal
+    last = value.assess(auction(10, hours=0.5, cap=200), W, {}, [], {}, 39.99, 6, now=NOW)
+    assert last.is_deal
+
+
+def test_max_bid_is_under_ceiling_and_95_percent_of_the_median_less_delivery():
+    cmp = value.comps(sold("psa", "2", 500), TODAY)
+    # ceiling 470, 0.92 x 500 = 460 -> the 460 limit, less $10 delivery
+    v = value.assess(auction(100, ship=10, cap=470), W, cmp, [], {}, 39.99, 6, now=NOW)
+    assert v.max_bid == 450 and v.snipe == 449.98
+    assert "92% of the PSA 10 sold median $500" in v.limit_why and "$10.00 delivery" in v.limit_why
+    # a ceiling lower than that wins
+    v = value.assess(auction(100, ship=0, cap=300), W, cmp, [], {}, 39.99, 6, now=NOW)
+    assert v.snipe == 299.98 and "your ceiling of $300" in v.limit_why
+
+
+def test_limit_below_the_next_bid_gives_no_max_bid():
+    cmp = value.comps(sold("psa", "2", 100), TODAY)
+    v = value.assess(auction(95, cap=100), W, cmp, [], {}, 39.99, 6, now=NOW)  # limit 92 < bid 95
+    assert v.snipe is None and v.max_bid is None
+    assert "below the next minimum bid" in v.advice
+
+
+def test_a_bid_at_the_median_does_not_claim_there_are_no_comps():
+    cmp = value.comps(sold("psa", "2", 100), TODAY)
+    v = value.assess(auction(100, cap=300), W, cmp, [], {}, 39.99, 6, now=NOW)
+    assert "already at the $100 sold median" in v.advice
+
+
+def test_running_auction_that_usually_sells_within_the_ceiling_is_a_snipe_deal():
+    cmp = value.comps(sold("psa", "2", 700, 720, 740), TODAY)
+    v = value.assess(auction(300, cap=1000), W, cmp, [], {}, 39.99, 6, now=NOW)
+    assert v.is_deal and v.snipeable and v.snipe == 662.39  # 0.92 x 720 = 662.40
+    assert "likely to finish near $720" in v.advice and "bid up to $662.39" in v.advice
+    # already bid past the limit: nothing left to snipe
+    gone = value.assess(auction(690, cap=1000), W, cmp, [], {}, 39.99, 6, now=NOW)
+    assert not gone.is_deal
+
+
+def test_a_raw_auction_worth_grading_keeps_the_grading_limit():
+    cmp = value.comps(sold("raw", "2", 80) + sold("psa", "2", 1000), TODAY)
+    v = value.assess(
+        auction(100, ship=0, kind="raw", cap=300), W, cmp, [], {"FMA": 0.77}, 39.99, 6, now=NOW
+    )
+    assert v.snipe is not None and v.snipe > 200  # not held to 92% of the $80 raw median
+
+
+def test_a_raw_auction_keeps_the_raw_market_limit_when_grading_does_not_pay():
+    cmp = value.comps(sold("raw", "2", 100) + sold("psa", "2", 100), TODAY)
+    v = value.assess(
+        auction(25, ship=0, kind="raw", cap=150), W, cmp, [], {"FMA": 0.77}, 39.99, 6, now=NOW
+    )
+    assert v.snipe == 91.98 and v.is_deal
+
+
+def test_the_likely_finish_includes_delivery():
+    cmp = value.comps(sold("psa", "2", 100), TODAY)
+    v = value.assess(auction(10, ship=30, cap=110), W, cmp, [], {}, 39.99, 6, now=NOW)
+    assert v.expected == 130 and not v.is_deal

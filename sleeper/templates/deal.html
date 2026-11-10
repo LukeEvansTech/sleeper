@@ -8,9 +8,10 @@
   <div class="actions">
     <a class="button primary" href="https://www.ebay.com/itm/{{ r.item_id }}">Open on eBay</a>
     <a class="button" href="/wants/{{ w._id }}">Edit want</a>
-    {% if r.auction and r.active %}<a class="button" href="{{ gixen_link(r.item_id, r.gixen_bid) }}" target="_blank" rel="noopener">Add to Gixen{% if r.gixen_bid %} · up to {{ r.gixen_bid | money }}{% endif %}</a>{% endif %}
+    {% if r.auction and r.active and not r.outcome %}<a class="button" href="{{ gixen_link(r.item_id, r.gixen_bid) }}" target="_blank" rel="noopener">Add to Gixen{% if r.gixen_bid %} · max bid {{ r.gixen_bid | bid }}{% endif %}</a>{% endif %}
   </div>
-  {% if not r.active %}<p class="warn">This listing was not in the latest search: it may have sold or ended.</p>{% endif %}
+  {% if r.outcome %}{% set show_outcome = true %}<h2>How it ended</h2>{% include "_outcome.html" %}{% endif %}
+  {% if not r.active and not r.outcome %}<p class="warn">This listing was not in the latest search: it may have sold or ended.</p>{% endif %}
 </section>
 
 <section class="pics">
@@ -36,7 +37,8 @@
     <tr><th>Title</th><td>{{ r.title }}</td></tr>
     <tr><th>Price</th><td>{{ r.usd | money }}{% if r.ship is not none %} + {{ r.ship | money if r.ship else 'free' }} delivery{% endif %} = <b>{{ r.v.total | money }}</b></td></tr>
     <tr><th>Your ceiling</th><td>{{ r.cap | money if r.cap else 'none set for this star bucket' }}</td></tr>
-    {% if r.auction %}<tr><th>Auction</th><td>{{ r.bids }} · {{ r.time_left }} left{% if r.v.max_bid %} · snipe up to <b>{{ r.v.max_bid | money }}</b>{% endif %}</td></tr>{% endif %}
+    {% if r.auction %}<tr><th>Auction</th><td>{{ r.bids }} · {{ r.time_left }} left{% if r.v.snipe and not r.outcome %} · max bid <b>{{ r.v.snipe | bid }}</b>{% endif %}</td></tr>
+    {% if r.v.limit_why and not r.outcome %}<tr><th>Max bid</th><td>{% if r.v.snipe %}<b>{{ r.v.snipe | bid }}</b>: {% endif %}{{ r.v.limit_why }}.{% if r.v.expected %} Expected finish ${{ '{:,.0f}'.format(r.v.expected) }}.{% endif %}</td></tr>{% endif %}{% endif %}
     {% if r.obo %}<tr><th>Best Offer</th><td>Accepts offers</td></tr>{% endif %}
     <tr><th>Seen</th><td>first {{ r.first_seen }}, last {{ r.last_seen }}{% if r.low_usd and r.low_usd < r.usd %}, lowest {{ r.low_usd | money }}{% endif %}</td></tr>
     {% if alerted %}<tr><th>Alerted</th><td>{{ alerted.sent }} UTC at {{ alerted.usd | money }}</td></tr>{% endif %}

@@ -14,7 +14,7 @@ import re
 import threading
 from typing import Any, Callable, Protocol
 
-from . import match, notify, photos, slab, value
+from . import match, notify, outcomes, photos, slab, value
 from .config import Settings
 from .db import DB
 from .ebay import Browser
@@ -197,15 +197,26 @@ def store(db: DB, run_id: int, found: list[dict], sold: list[dict], searched: li
                        time_left, obo, img, cap, deal, first_seen, last_seen, first_run, last_run,
                        low_usd, active, ends, cur)
                    VALUES (:item_id, :kind, :want_id, :title, :usd, :ship, :star, :auction, :bids,
-                       :time_left, :obo, :img, :cap, :deal, :now, :now, :run, :run, :usd, 1, :ends, :cur)
+                       :time_left, :obo, :img, :cap, :deal, :now, :now, :run, :run, :usd,
+                       NOT EXISTS (SELECT 1 FROM outcomes o WHERE o.item_id = :item_id
+                                   AND o.status IN ('sold', 'unsold')), :ends, :cur)
                    ON CONFLICT(item_id, kind) DO UPDATE SET
                        want_id = excluded.want_id, title = excluded.title, usd = excluded.usd,
                        ship = excluded.ship, star = excluded.star, auction = excluded.auction,
                        bids = excluded.bids, time_left = excluded.time_left, obo = excluded.obo,
                        ends = excluded.ends, cur = excluded.cur,
-                       img = excluded.img, cap = excluded.cap, deal = excluded.deal,
+                       img = excluded.img, cap = excluded.cap,
+                       deal = CASE WHEN EXISTS (SELECT 1 FROM outcomes o WHERE o.item_id = listings.item_id
+                                  AND o.status IN ('sold', 'unsold'))
+                                  -- an auction already over keeps its rated flag: no rating follows
+                                  OR (excluded.ends IS NOT NULL AND excluded.ends < substr(:now, 1, 16))
+                                  THEN listings.deal ELSE excluded.deal END,
                        last_seen = excluded.last_seen, last_run = excluded.last_run,
-                       low_usd = min(listings.low_usd, excluded.usd), active = 1""",
+                       low_usd = min(listings.low_usd, excluded.usd),
+                       active = NOT EXISTS (SELECT 1 FROM outcomes o WHERE o.item_id = listings.item_id
+                                            AND o.status IN ('sold', 'unsold'))
+                                AND NOT (excluded.ends IS NOT NULL
+                                         AND excluded.ends < substr(:now, 1, 16))""",
                 {**f, "now": now, "run": run_id},
             )
         for want_id, kind in searched:
@@ -460,7 +471,12 @@ def move_to_sibling(
 def rate(db: DB, s: Settings, run_id: int, wants: dict[int, dict]) -> int:
     """Drop deals the sold comps say are fair or high; returns how many were dropped."""
     rows = [
-        dict(r) for r in db.all("SELECT * FROM listings WHERE last_run = ? AND deal = 1", run_id)
+        dict(r)
+        for r in db.all(
+            "SELECT * FROM listings WHERE last_run = ? AND deal = 1 AND item_id NOT IN "
+            "(SELECT item_id FROM outcomes WHERE status IN ('sold', 'unsold'))",  # over: keep as it was
+            run_id,
+        )
     ]
     if not rows:
         return 0
@@ -732,6 +748,8 @@ def run(
             store(db, run_id, list(uniq.values()), sold, searched)
             for w in wants:
                 retire_unsearched(db, w)
+            got = outcomes.check(db, b)  # sales join the comps before this sweep rates anything
+            say(f"outcomes: {got['asked']} checked, {got['sold']} sold, {got['unsold']} unsold")
             demoted = rate(db, s, run_id, by_id)
             say(f"price check: {demoted} under the ceiling but not below recent sales")
             say("photo check")

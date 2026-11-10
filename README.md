@@ -30,6 +30,17 @@ sweep (cron) ─▶ eBay search per want (Browse API or headless Chromium) ─�
 - **Deal**: under the ceiling and either `great`, `good` or `unknown` (no sold prices yet). A raw
   copy rated `fair` or `high` still counts when grading it costs under 85% of the PSA 10 sold
   median. Anything else under the ceiling is listed but not alerted.
+- **Running auctions** are rated on their likely finish, not the bid so far: the larger of the
+  landed bid and the sold median plus this listing's delivery. One with comps is a deal (and alerts) while it runs only when
+  that likely finish is within the ceiling and a max bid is still possible, or for a raw copy that
+  is cheap to grade at that price. With no comps it is `unknown` and not a deal until it is within six hours
+  of its end, the default sweep interval. Each shows a **max bid**: the lower of the
+  ceiling and 92% of the PSA 10 sold median (for a raw copy: what still beats grading, else 92% of the raw median), less delivery, then nudged to an amount other bidders
+  avoid (not ending in 0 or 5, .01 or .99), or none when that is below the next eBay increment.
+- **Outcomes**: each sweep asks the Browse API how listings that left the search (or auctions past
+  their end) finished, up to 200 a sweep, again after 20 hours while still on sale and not after 30
+  days. A sold auction's final price joins the sold comps (fixed-price sales do not: their price is unknown); the Ended page lists deals and alerts with
+  their final price.
 - **Verdict**: `great` / `good` / `fair` / `high` against the 90-day sold median for the same
   card, kind (PSA 10 or raw) and star bucket, plus the cost of one PSA 10 by grading a raw copy:
   `(raw price + grading fee + shipping) / gem rate`. The gem rate is the card's own PSA pop when 10

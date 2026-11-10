@@ -47,10 +47,10 @@ def parse(item: dict, now: dt.datetime | None = None) -> dict:
         pass
     out_of_stock = avail.get("estimatedAvailabilityStatus") == "OUT_OF_STOCK"
     ended = out_of_stock or (end is not None and end <= now)
-    bids = item.get("bidCount")
-    bids = int(bids) if _num(bids) is not None else None
-    sold_qty = avail.get("estimatedSoldQuantity")
-    sold_qty = int(sold_qty) if _num(sold_qty) is not None else None
+    n_bids = _num(item.get("bidCount"))
+    bids = int(n_bids) if n_bids is not None else None
+    n_sold = _num(avail.get("estimatedSoldQuantity"))
+    sold_qty = int(n_sold) if n_sold is not None else None
     if sold_qty is None and "AUCTION" in (item.get("buyingOptions") or []):
         sold_qty = 1 if (bids or 0) > 0 else 0  # an auction's sold count is missing: bids decide
     sold = ended and (sold_qty or 0) >= 1 and final is not None and final > 0

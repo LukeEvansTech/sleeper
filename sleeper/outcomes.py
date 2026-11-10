@@ -21,6 +21,7 @@ RECHECK_HOURS = 20  # a listing still on sale is asked about again after this lo
 GIVE_UP_DAYS = 30  # and not at all this long after the first check
 STOP_AFTER_FAILURES = 5  # consecutive failed calls: eBay is down, leave the rest for later
 FINAL = ("sold", "unsold")
+ITEM_NOT_FOUND = {11001, 11003}  # Browse errorIds: no such item / legacy item
 MISSING = {"final_usd": None, "currency": "", "bids": None, "sold_qty": None,
            "status": "missing", "ended_at": None}  # fmt: skip
 
@@ -163,7 +164,7 @@ def check(db: DB, source: Any, now: dt.datetime | None = None, limit: int = MAX_
     try:
         for cand in candidates(db, now, limit):
             if hasattr(source, "last_status"):
-                source.last_status = 0
+                source.last_status, source.last_errors = 0, set()
             try:
                 item = ask(cand["item_id"])
             except Exception as e:  # pylint: disable=broad-exception-caught
@@ -171,7 +172,8 @@ def check(db: DB, source: Any, now: dt.datetime | None = None, limit: int = MAX_
                 item = None
             stats["asked"] += 1
             code = getattr(source, "last_status", 0)
-            if item is None and code in (404, 410):
+            gone = code in (404, 410) or ITEM_NOT_FOUND & set(getattr(source, "last_errors", ()))
+            if item is None and gone:
                 # eBay answered that this item is not there: not an outage, so the pass goes on.
                 item_row: dict | None = {**MISSING}
             else:

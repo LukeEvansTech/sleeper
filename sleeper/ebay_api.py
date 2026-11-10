@@ -59,6 +59,15 @@ def _fetch(req: urllib.request.Request) -> tuple[int, bytes]:
         return e.code, e.read()
 
 
+def error_ids(raw: bytes) -> set[int]:
+    """The errorIds in an eBay error body (empty when it is not one)."""
+    try:
+        body = json.loads(raw)
+        return {int(e["errorId"]) for e in body.get("errors", []) if "errorId" in e}
+    except (ValueError, TypeError, KeyError, AttributeError):
+        return set()
+
+
 def split_query(q: str) -> tuple[str, list[str]]:
     """eBay website query -> (Browse API q, excluded words)."""
     keep, drop = [], []
@@ -160,6 +169,7 @@ class BrowseAPI:
         self._token, self._expires = "", 0.0
         self._warned_sold = False
         self.last_status = 0  # HTTP status of the last call (0: no answer)
+        self.last_errors: set[int] = set()  # eBay errorIds in the last error answer
 
     def __enter__(self) -> "BrowseAPI":
         return self
@@ -200,7 +210,9 @@ class BrowseAPI:
                     ctx = urllib.parse.quote(f"country=US,zip={zip_code}")
                     headers["X-EBAY-C-ENDUSERCTX"] = f"contextualLocation={ctx}"
                 status, raw = self._fetch(urllib.request.Request(url, headers=headers))
-                self.last_status = status
+                self.last_status, self.last_errors = status, set()
+                if status != 200:
+                    self.last_errors = error_ids(raw)
                 if status == 200:
                     return json.loads(raw)
             except Exception as e:  # pylint: disable=broad-exception-caught

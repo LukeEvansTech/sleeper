@@ -306,10 +306,7 @@ def assess(
         anchors: list[tuple[float, str]] = []
         if cap:
             anchors.append((cap, f"your ceiling of ${cap:,.0f}"))
-        if same:
-            anchors.append(
-                (same.median * 0.95, f"95% of the {label} sold median ${same.median:,.0f}")
-            )
+        # Value limits: a slab's own median; a raw copy's grading value, else its raw median.
         if kind == "psa" and ten:
             anchors.append((ten.median * 0.92, f"92% of the PSA 10 sold median ${ten.median:,.0f}"))
         if kind == "raw" and ten and rate:

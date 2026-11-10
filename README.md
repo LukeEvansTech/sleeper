@@ -35,7 +35,7 @@ sweep (cron) ─▶ eBay search per want (Browse API or headless Chromium) ─�
   that likely finish is within the ceiling and a max bid is still possible, or for a raw copy that
   is cheap to grade at that price. With no comps it is `unknown` and not a deal until it is within six hours
   of its end, the default sweep interval. Each shows a **max bid**: the lower of the
-  ceiling and 92-95% of the sold median, less delivery, then nudged to an amount other bidders
+  ceiling and 92% of the PSA 10 sold median (for a raw copy: what still beats grading, else 92% of the raw median), less delivery, then nudged to an amount other bidders
   avoid (not ending in 0 or 5, .01 or .99), or none when that is below the next eBay increment.
 - **Outcomes**: each sweep asks the Browse API how listings that left the search (or auctions past
   their end) finished, up to 200 a sweep, again after 20 hours while still on sale and not after 30

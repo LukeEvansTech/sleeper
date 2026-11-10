@@ -4,7 +4,7 @@ import datetime as dt
 
 import pytest
 from fastapi.testclient import TestClient
-from sleeper import config, outcomes, sweep
+from sleeper import config, ebay_api, outcomes, sweep
 from sleeper.db import DB
 from sleeper.web import create_app
 from test_web import ROW, FakeBrowser
@@ -419,3 +419,22 @@ def test_an_ended_auction_returned_before_its_outcome_keeps_its_rated_flag(db):
     assert db.one("SELECT deal FROM listings WHERE item_id = '9'")["deal"] == 0
     sweep.store(db, 100, [{**found, "item_id": "8", "ends": "2099-01-01T10:00"}], [], [])
     assert db.one("SELECT deal FROM listings WHERE item_id = '8'")["deal"] == 1
+
+
+def test_a_400_with_the_missing_item_error_counts_as_missing(db):
+    for i in range(7):
+        listing(db, str(i))
+
+    class Gone400(FakeAPI):
+        last_status, last_errors = 0, set()
+
+        def item(self, item_id):
+            self.last_status, self.last_errors = 400, {11003}
+            return super().item(item_id)
+
+    assert outcomes.check(db, Gone400({}), NOW)["missing"] == 7
+
+
+def test_error_ids_are_read_from_an_ebay_error_body():
+    assert ebay_api.error_ids(b'{"errors": [{"errorId": 11003}]}') == {11003}
+    assert not ebay_api.error_ids(b"<html>")

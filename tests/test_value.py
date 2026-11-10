@@ -143,7 +143,7 @@ def test_auction_without_comps_is_a_deal_only_in_its_final_hour():
 
 def test_max_bid_is_under_ceiling_and_95_percent_of_the_median_less_delivery():
     cmp = value.comps(sold("psa", "2", 500), TODAY)
-    # ceiling 470, 0.95 x 500 = 475, 0.92 x 500 = 460 -> the 460 limit, less $10 delivery
+    # ceiling 470, 0.92 x 500 = 460 -> the 460 limit, less $10 delivery
     v = value.assess(auction(100, ship=10, cap=470), W, cmp, [], {}, 39.99, 6, now=NOW)
     assert v.max_bid == 450 and v.snipe == 449.98
     assert "92% of the PSA 10 sold median $500" in v.limit_why and "$10.00 delivery" in v.limit_why
@@ -173,3 +173,11 @@ def test_running_auction_that_usually_sells_within_the_ceiling_is_a_snipe_deal()
     # already bid past the limit: nothing left to snipe
     gone = value.assess(auction(690, cap=1000), W, cmp, [], {}, 39.99, 6, now=NOW)
     assert not gone.is_deal
+
+
+def test_a_raw_auction_worth_grading_keeps_the_grading_limit():
+    cmp = value.comps(sold("raw", "2", 80) + sold("psa", "2", 1000), TODAY)
+    v = value.assess(
+        auction(100, ship=0, kind="raw", cap=300), W, cmp, [], {"FMA": 0.77}, 39.99, 6, now=NOW
+    )
+    assert v.snipe is not None and v.snipe > 200  # not held to 92% of the $80 raw median

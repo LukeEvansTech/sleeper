@@ -31,7 +31,7 @@ sweep (cron) ─▶ eBay search per want (Browse API or headless Chromium) ─�
   copy rated `fair` or `high` still counts when grading it costs under 85% of the PSA 10 sold
   median. Anything else under the ceiling is listed but not alerted.
 - **Running auctions** are rated on their likely finish, not the bid so far: the larger of the
-  landed bid and the sold median. One with comps is a deal (and alerts) while it runs only when
+  landed bid and the sold median plus this listing's delivery. One with comps is a deal (and alerts) while it runs only when
   that likely finish is within the ceiling and a max bid is still possible, or for a raw copy that
   is cheap to grade at that price. With no comps it is `unknown` and not a deal until it is within six hours
   of its end, the default sweep interval. Each shows a **max bid**: the lower of the

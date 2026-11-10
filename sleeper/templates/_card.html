@@ -1,14 +1,16 @@
 {# one listing tile, framed like a slab: r has v (verdict), want, artd. The name link stretches over the
    tile, so the Gixen link can sit inside it without nesting one link in another. #}
-<article class="tile rating-{{ r.v.rating }}{{ ' steal' if r.v.market and r.v.market <= 0.4 }}">
+{# On the Ended page the rating and market meter describe a price that no longer exists, so they go. #}
+{% set ended = r.outcome and show_outcome %}
+<article class="tile{% if not ended %} rating-{{ r.v.rating }}{{ ' steal' if r.v.market and r.v.market <= 0.4 }}{% endif %}">
   <span class="fmt {{ 'fmt-auction' if r.auction else 'fmt-bin' }}">{{ 'Auction' if r.auction else 'Buy it now' }}</span>
   <div class="well"><img loading="lazy" src="{{ r.img | ebay_img(300) }}" alt="" width="300" height="400"></div>
   <div class="label">
     <strong class="name"><a class="stretch" href="/deal/{{ r.item_id }}/{{ r.kind }}">{{ r.want.who }}</a></strong>
     <span class="meta"><span>{{ r.want.set }}</span><span>{{ 'PSA 10' if r.kind == 'psa' else 'raw' }}{% if r.star and r.star != '-' %} {{ r.star | star }}{% endif %}</span></span>
-    <span class="grade"><span class="price">{{ r.v.total | money }}</span><span class="rating">{{ r.v.rating }}</span></span>
+    <span class="grade"><span class="price">{{ r.v.total | money }}</span>{% if not ended %}<span class="rating">{{ r.v.rating }}</span>{% endif %}</span>
   </div>
-  {% set v = r.v %}{% set big = false %}{% include "_meter.html" %}
+  {% if not ended %}{% set v = r.v %}{% set big = false %}{% include "_meter.html" %}{% endif %}
   <div class="foot-row">
     {% if r.cap %}<span class="num">ceiling {{ r.cap | money }}</span>{% endif %}
     {% if r.auction %}<span>{{ r.bids or 'no bids' }}{% if r.time_left and not r.outcome %}, {{ r.time_left }}{% endif %}</span>{% endif %}
@@ -16,7 +18,7 @@
     {% if r.obo %}<span>offers</span>{% endif %}
     {% if r.artd.verdict == 'match' %}<span class="ok">art matches</span>{% elif r.artd.verdict == 'differs' %}<b class="warn">art differs</b>{% elif r.artd.verdict == 'unclear' %}<span>art unclear</span>{% endif %}
   </div>
-  {% if r.outcome and show_outcome %}{% include "_outcome.html" %}{% endif %}
+  {% if ended %}{% include "_outcome.html" %}{% endif %}
   {% if r.auction and r.active and not r.outcome %}
   <a class="snipe-btn button" href="{{ gixen_link(r.item_id, r.gixen_bid) }}" target="_blank" rel="noopener">Add to Gixen{% if r.gixen_bid %} · max bid {{ r.gixen_bid | bid }}{% endif %}</a>
   {% endif %}

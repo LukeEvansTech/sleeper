@@ -108,7 +108,7 @@ def test_snipe_bid_is_none_below_the_next_minimum_bid():
     assert value.snipe_bid(102.40, current=100.0) is None
     assert value.snipe_bid(102.50, current=100.0) is None  # steps down to 102.48: under the minimum
     assert value.snipe_bid(20.04, current=20.04, bids=0) == 20.04
-    assert value.snipe_bid(20.04, current=20.04, bids=1) is None  # one more increment is needed
+    assert value.snipe_bid(20.04, current=20.04, bids=1) is None
     assert [value.increment(x) for x in (0.5, 3, 30, 120, 300, 600, 1500, 3000, 6000)] == [
         0.05, 0.25, 1, 2.5, 5, 10, 25, 50, 100,
     ]  # fmt: skip

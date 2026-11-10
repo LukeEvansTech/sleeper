@@ -181,3 +181,11 @@ def test_a_raw_auction_worth_grading_keeps_the_grading_limit():
         auction(100, ship=0, kind="raw", cap=300), W, cmp, [], {"FMA": 0.77}, 39.99, 6, now=NOW
     )
     assert v.snipe is not None and v.snipe > 200  # not held to 92% of the $80 raw median
+
+
+def test_a_raw_auction_keeps_the_raw_market_limit_when_grading_does_not_pay():
+    cmp = value.comps(sold("raw", "2", 100) + sold("psa", "2", 100), TODAY)
+    v = value.assess(
+        auction(25, ship=0, kind="raw", cap=150), W, cmp, [], {"FMA": 0.77}, 39.99, 6, now=NOW
+    )
+    assert v.snipe == 91.98 and v.is_deal

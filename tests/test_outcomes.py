@@ -438,3 +438,9 @@ def test_a_400_with_the_missing_item_error_counts_as_missing(db):
 def test_error_ids_are_read_from_an_ebay_error_body():
     assert ebay_api.error_ids(b'{"errors": [{"errorId": 11003}]}') == {11003}
     assert not ebay_api.error_ids(b"<html>")
+
+
+def test_an_auction_with_bids_but_no_sale_yet_is_asked_again(db):
+    listing(db, "1")
+    outcomes.check(db, FakeAPI({"1": item(status="IN_STOCK", sold=0, bids=4)}), NOW)
+    assert db.one("SELECT status FROM outcomes WHERE item_id = '1'")["status"] == "on_sale"

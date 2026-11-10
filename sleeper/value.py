@@ -309,15 +309,21 @@ def assess(
         # Value limits: a slab's own median; a raw copy's grading value, else its raw median.
         if kind == "psa" and ten:
             anchors.append((ten.median * 0.92, f"92% of the PSA 10 sold median ${ten.median:,.0f}"))
-        if kind == "raw" and ten and rate:
-            anchors.append(
-                (
-                    ten.median * 0.84 * rate - fee - grade_ship,
-                    f"what still beats grading (PSA 10 median ${ten.median:,.0f})",
+        if kind == "raw":
+            # Either route keeps a raw copy a deal, so the more generous one sets the limit.
+            routes: list[tuple[float, str]] = []
+            if ten and rate:
+                routes.append(
+                    (
+                        ten.median * 0.84 * rate - fee - grade_ship,
+                        f"what still beats grading (PSA 10 median ${ten.median:,.0f})",
+                    )
                 )
-            )
-        elif kind == "raw" and raw:
-            anchors.append((raw.median * 0.92, f"92% of the raw sold median ${raw.median:,.0f}"))
+            if raw:
+                routes.append((raw.median * 0.92, f"92% of the raw sold median ${raw.median:,.0f}"))
+            routes = [x for x in routes if math.isfinite(x[0])]
+            if routes:
+                anchors.append(max(routes))
         anchors = [x for x in anchors if math.isfinite(x[0])]
         if anchors:
             low, why = min(anchors)

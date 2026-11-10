@@ -399,9 +399,8 @@ def test_auth_failures_are_errors_not_missing_items(db):
         last_status = 0
 
         def item(self, item_id):
-            super().item(item_id)
             self.last_status = 401
-            return None
+            return super().item(item_id)  # no answer configured: None
 
     stats = outcomes.check(db, Denied({}), NOW)
     assert stats["missing"] == 0 and stats["error"] == outcomes.STOP_AFTER_FAILURES
@@ -409,7 +408,8 @@ def test_auth_failures_are_errors_not_missing_items(db):
 
 def test_an_ended_auction_returned_before_its_outcome_keeps_its_rated_flag(db):
     listing(db, "9", active=1, ends="2026-11-01T10:00")
-    db.run("UPDATE listings SET deal = 0 WHERE item_id = '9'")  # rated down while it ran
+    # rated down while it ran
+    db.run("UPDATE listings SET deal = 0 WHERE item_id = '9'")
     found = {
         "item_id": "9", "kind": "psa", "want_id": 1, "title": "PSA 10 Vegito", "usd": 33,
         "ship": 5, "star": "2", "auction": 1, "bids": "3 bids", "time_left": "", "obo": 0,

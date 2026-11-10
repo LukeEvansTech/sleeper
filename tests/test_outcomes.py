@@ -220,3 +220,46 @@ def test_ended_page_orders_newest_first(web):
     )
     html = client.get("/ended").text
     assert html.index("/deal/2/") < html.index("/deal/1/")
+
+
+def test_an_unmet_reserve_is_not_a_sale(db):
+    listing(db, "1")
+    got = item(sold=None, bids=3)
+    got["estimatedAvailabilities"] = [{"estimatedAvailabilityStatus": "OUT_OF_STOCK"}]
+    outcomes.check(db, FakeAPI({"1": {**got, "reservePriceMet": False}}), NOW)
+    assert outcome(db, "1")["status"] == "unsold"
+    listing(db, "2")
+    outcomes.check(db, FakeAPI({"2": got}), NOW)  # no sold count: bids decide
+    assert outcome(db, "2")["status"] == "sold"
+
+
+def test_a_rejected_listing_never_becomes_a_comp(db):
+    listing(db, "1")
+    listing(db, "2")
+    db.run("INSERT INTO blocked (item_id, reason) VALUES ('1', 'slab is CGC 9')")
+    db.run("""UPDATE listings SET art = '{"verdict": "differs"}' WHERE item_id = '2'""")
+    outcomes.check(db, FakeAPI({"1": item(), "2": item()}), NOW)
+    assert outcome(db, "1")["status"] == "sold"
+    assert db.one("SELECT count(*) AS n FROM sold")["n"] == 0
+
+
+def test_a_listing_found_ended_is_retired_and_not_rated_again(db):
+    listing(db, "1", active=1, ends="2026-11-10T10:00")  # ended, still marked live
+    outcomes.check(db, FakeAPI({"1": item()}), NOW)
+    assert db.one("SELECT active FROM listings WHERE item_id = '1'")["active"] == 0
+
+
+def test_best_offer_outcome_shows_the_asking_price_not_a_final(web):
+    d, client = web
+    listing(d, "1", auction=0, obo=1)
+    outcomes.check(d, FakeAPI({"1": item(end=None, buying=("FIXED_PRICE",))}), NOW)
+    html = client.get("/ended").text
+    assert "Listed at" in html and "sale price is unknown" in html and "<dt>Final</dt>" not in html
+
+
+def test_max_bid_keeps_its_cents(web):
+    d, client = web
+    listing(d, "1", active=1, ends="2099-01-01T00:00")
+    d.run("UPDATE listings SET usd = 480, cap = 500, ship = 0, bids = '2 bids', cur = 'USD'")
+    html = client.get("/?show=all").text
+    assert "Max bid $499.98" in html and "max bid $499.98" in html

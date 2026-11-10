@@ -33,7 +33,7 @@ def _num(x: Any) -> float | None:
 def parse(item: dict, now: dt.datetime | None = None) -> dict:
     """An item as eBay returns it -> the outcome row (without its timestamps)."""
     now = now or dt.datetime.now(dt.timezone.utc)
-    avail = next(iter(item.get("estimatedAvailabilities") or []), {}) or {}
+    avail: dict = next(iter(item.get("estimatedAvailabilities") or []), {}) or {}
     price = item.get("price") or {}
     # an auction's price is its final price once it ended; currentBidPrice is the fallback
     final = _num(price.get("value"))
@@ -53,6 +53,8 @@ def parse(item: dict, now: dt.datetime | None = None) -> dict:
     sold_qty = int(n_sold) if n_sold is not None else None
     if sold_qty is None and "AUCTION" in (item.get("buyingOptions") or []):
         sold_qty = 1 if (bids or 0) > 0 else 0  # an auction's sold count is missing: bids decide
+    if item.get("reservePriceMet") is False:  # bids that never met the reserve are not a sale
+        sold_qty = 0
     sold = ended and (sold_qty or 0) >= 1 and final is not None and final > 0
     return {
         "final_usd": final,
@@ -70,7 +72,7 @@ def candidates(db: DB, now: dt.datetime, limit: int = MAX_CHECKS) -> list[dict]:
     due = (now - dt.timedelta(hours=RECHECK_HOURS)).isoformat(timespec="seconds")
     stop = (now - dt.timedelta(days=GIVE_UP_DAYS)).isoformat(timespec="seconds")
     rows = db.all(
-        """SELECT l.item_id, l.kind, l.want_id, l.star, l.title, l.obo, l.auction, o.checked_at
+        """SELECT l.item_id, l.kind, l.want_id, l.star, l.title, l.obo, l.auction, l.art, o.checked_at
            FROM listings l LEFT JOIN outcomes o ON o.item_id = l.item_id
            WHERE (l.active = 0 OR (l.auction = 1 AND l.ends IS NOT NULL AND l.ends < ?))
              AND (o.item_id IS NULL
@@ -105,8 +107,17 @@ def record(db: DB, cand: dict, got: dict | None, now: dt.datetime) -> str:
                    checked_at = excluded.checked_at""",
             {**o, "item_id": cand["item_id"], "now": stamp},
         )
-        # A Best Offer sale may have closed below the listed price, so only list-price sales count.
-        if o["status"] == "sold" and not (cand["obo"] and not cand["auction"]):
+        if o["status"] in FINAL:  # over: never live, rated or alerted again
+            c.execute("UPDATE listings SET active = 0 WHERE item_id = ?", (cand["item_id"],))
+        # Not a comp: a Best Offer sale may have closed below the listed price; a listing already
+        # rejected (blocked, wrong slab, another card's photo) is not this card.
+        rejected = c.execute(
+            "SELECT 1 FROM blocked WHERE item_id = ?", (cand["item_id"],)
+        ).fetchone() or (json.loads(cand["art"]) if cand["art"] else {}).get("verdict") in (
+            "differs",
+            "unwanted",
+        )
+        if o["status"] == "sold" and not (cand["obo"] and not cand["auction"]) and not rejected:
             w = c.execute("SELECT id, spec FROM wants WHERE id = ?", (cand["want_id"],)).fetchone()
             if w:
                 spec = json.loads(w["spec"])

@@ -460,7 +460,12 @@ def move_to_sibling(
 def rate(db: DB, s: Settings, run_id: int, wants: dict[int, dict]) -> int:
     """Drop deals the sold comps say are fair or high; returns how many were dropped."""
     rows = [
-        dict(r) for r in db.all("SELECT * FROM listings WHERE last_run = ? AND deal = 1", run_id)
+        dict(r)
+        for r in db.all(
+            "SELECT * FROM listings WHERE last_run = ? AND deal = 1 AND item_id NOT IN "
+            "(SELECT item_id FROM outcomes WHERE status IN ('sold', 'unsold'))",  # over: keep as it was
+            run_id,
+        )
     ]
     if not rows:
         return 0

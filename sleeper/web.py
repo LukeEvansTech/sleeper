@@ -38,6 +38,15 @@ def money(v) -> str:
     return f"${f:,.2f}" if f < 100 else f"${f:,.0f}"
 
 
+def bid(v) -> str:
+    """A bid to the cent: the amount is chosen to the cent, so never round it."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return ""
+    return f"${f:,.2f}" if math.isfinite(f) else ""
+
+
 def star_label(star: str) -> str:
     return f"{star}★" if star and star != "-" else ""
 
@@ -116,6 +125,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
 
     tpl = Jinja2Templates(directory=HERE / "templates")
     tpl.env.filters["money"] = money
+    tpl.env.filters["bid"] = bid
     tpl.env.filters["star"] = star_label
     tpl.env.filters["ebay_img"] = ebay_img
     tpl.env.filters["pct"] = pct
@@ -179,7 +189,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
                 for r in rows[: summary.MAX_CARDS]:
                     lines.append(
                         f"- {r['want']['who']}: {money(r['v'].total)} {r['v'].rating}"
-                        f"{', max bid ' + money(r['v'].snipe) if r['auction'] and r['v'].snipe else ''} "
+                        f"{', max bid ' + bid(r['v'].snipe) if r['auction'] and r['v'].snipe else ''} "
                         f"{s.link('/deal/' + r['item_id'] + '/' + r['kind'])}"
                     )
                 lines.append("")

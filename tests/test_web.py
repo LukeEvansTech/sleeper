@@ -72,7 +72,7 @@ def test_import_sweep_and_deal_page(env, monkeypatch):
     page = client.get("/deal/222/psa")
     assert page.status_code == 200
     assert "Vegito" in page.text and "$656" in page.text
-    assert "Max bid" in page.text and "<b>$1,144</b>" in page.text
+    assert "Max bid" in page.text and "<b>$1,144.36</b>" in page.text
     assert client.get("/").status_code == 200
     assert client.get(f"/run/{run1}").status_code == 200
     assert client.get("/wants").status_code == 200

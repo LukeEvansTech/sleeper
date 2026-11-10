@@ -113,7 +113,7 @@ def test_summary_emails_new_deals_with_photos_and_moves_on(env):
     assert msg["Message-ID"].endswith("@example.com>") and msg["Date"]
     html = msg.get_body(("html",)).get_content()
     assert "cid:" in html and "https://sleeper.example/deal/2/psa" in html
-    assert "max bid $1,144" in html
+    assert "max bid $1,144.36" in html
     images = [p for p in msg.walk() if p.get_content_type() == "image/jpeg"]
     assert images and all(p["Content-ID"] for p in images)
     assert "https://sleeper.example/deal/2/psa" in msg.get_body(("plain",)).get_content()

@@ -157,3 +157,9 @@ def test_limit_below_the_next_bid_gives_no_max_bid():
     v = value.assess(auction(95, cap=100), W, cmp, [], {}, 39.99, 6, now=NOW)  # limit 92 < bid 95
     assert v.snipe is None and v.max_bid is None
     assert "below the next minimum bid" in v.advice
+
+
+def test_a_bid_at_the_median_does_not_claim_there_are_no_comps():
+    cmp = value.comps(sold("psa", "2", 100), TODAY)
+    v = value.assess(auction(100, cap=300), W, cmp, [], {}, 39.99, 6, now=NOW)
+    assert "already at the $100 sold median" in v.advice

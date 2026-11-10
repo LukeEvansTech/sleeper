@@ -56,8 +56,8 @@ def parse(item: dict, now: dt.datetime | None = None) -> dict:
     bids = int(n_bids) if n_bids is not None else None
     n_sold = _num(avail.get("estimatedSoldQuantity"))
     sold_qty = int(n_sold) if n_sold is not None else None
-    if sold_qty is None and auction:
-        sold_qty = 1 if (bids or 0) > 0 else 0  # an auction's sold count is missing: bids decide
+    if sold_qty is None and auction and bids is not None:
+        sold_qty = 1 if bids > 0 else 0  # an auction's sold count is missing: bids decide
     if item.get("reservePriceMet") is False:  # bids that never met the reserve are not a sale
         sold_qty = 0
     if ended and sold_qty is None:
@@ -127,7 +127,7 @@ def record(db: DB, cand: dict, got: dict | None, now: dt.datetime) -> str:
             "differs",
             "unwanted",
         )
-        if o["status"] == "sold" and cand["auction"] and not rejected:
+        if o["status"] == "sold" and cand["auction"] and (o["bids"] or 0) >= 1 and not rejected:
             w = c.execute("SELECT id, spec FROM wants WHERE id = ?", (cand["want_id"],)).fetchone()
             if w:
                 spec = json.loads(w["spec"])

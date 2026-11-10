@@ -330,3 +330,15 @@ def test_an_ended_fixed_price_listing_with_no_sales_count_stays_unresolved(db):
     got["estimatedAvailabilities"] = [{"estimatedAvailabilityStatus": "OUT_OF_STOCK"}]
     outcomes.check(db, FakeAPI({"1": got}), NOW)
     assert outcome(db, "1")["status"] == "on_sale"
+
+
+def test_an_auction_closed_without_bids_adds_no_comp_and_missing_counts_wait(db):
+    listing(db, "1")
+    listing(db, "2")
+    offer = item(bids=0)  # sold with no bids: a Best Offer, price unknown
+    blank = item(sold=None)
+    del blank["bidCount"]
+    blank["estimatedAvailabilities"] = [{"estimatedAvailabilityStatus": "OUT_OF_STOCK"}]
+    outcomes.check(db, FakeAPI({"1": offer, "2": blank}), NOW)
+    assert outcome(db, "1")["status"] == "sold" and outcome(db, "2")["status"] == "on_sale"
+    assert db.one("SELECT count(*) AS n FROM sold")["n"] == 0

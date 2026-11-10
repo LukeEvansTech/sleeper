@@ -324,8 +324,12 @@ def assess(
             max_bid = float(max(0, math.floor(limit)))  # never round up
             snipe = snipe_bid(limit, usd, _bid_count(listing))
             limit_why = f"The lower of {why}" + (f", less ${ship:,.2f} delivery" if ship else "")
-            if running and expected > total and same:
-                finish = f"Auction: likely to finish near ${expected:,.0f} (sold median)"
+            if running and same:
+                finish = (
+                    f"Auction: likely to finish near ${expected:,.0f} (sold median)"
+                    if expected > total
+                    else f"Auction: the bid is already at the ${same.median:,.0f} sold median"
+                )
             elif running:
                 finish = "Auction: no sold median to judge the finish by"
             else:

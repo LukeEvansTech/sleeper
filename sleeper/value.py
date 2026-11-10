@@ -124,7 +124,7 @@ INCREMENTS = [
     (250000, 5000),
     (500000, 10000),
 ]
-FINAL_WINDOW_H = 1.0  # an auction this close to its end, with no comps, is rated on its bid
+FINAL_WINDOW_H = 6.0  # the default sweep interval: seen once in this window, it is rated on its bid
 
 
 def increment(current: float) -> float:

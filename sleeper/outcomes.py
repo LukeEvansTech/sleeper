@@ -46,12 +46,15 @@ def parse(item: dict, now: dt.datetime | None = None) -> dict:
     except ValueError:
         pass
     out_of_stock = avail.get("estimatedAvailabilityStatus") == "OUT_OF_STOCK"
-    ended = out_of_stock or (end is not None and end <= now)
+    # A sold-out listing with no end date may be sold-out stock the seller will refill, so only an
+    # auction, or a listing whose end date has passed, is over.
+    auction = "AUCTION" in (item.get("buyingOptions") or [])
+    ended = (end is not None and end <= now) or (out_of_stock and (auction or end is not None))
     n_bids = _num(item.get("bidCount"))
     bids = int(n_bids) if n_bids is not None else None
     n_sold = _num(avail.get("estimatedSoldQuantity"))
     sold_qty = int(n_sold) if n_sold is not None else None
-    if sold_qty is None and "AUCTION" in (item.get("buyingOptions") or []):
+    if sold_qty is None and auction:
         sold_qty = 1 if (bids or 0) > 0 else 0  # an auction's sold count is missing: bids decide
     if item.get("reservePriceMet") is False:  # bids that never met the reserve are not a sale
         sold_qty = 0
@@ -109,15 +112,16 @@ def record(db: DB, cand: dict, got: dict | None, now: dt.datetime) -> str:
         )
         if o["status"] in FINAL:  # over: never live, rated or alerted again
             c.execute("UPDATE listings SET active = 0 WHERE item_id = ?", (cand["item_id"],))
-        # Not a comp: a Best Offer sale may have closed below the listed price; a listing already
-        # rejected (blocked, wrong slab, another card's photo) is not this card.
+        # Only an auction's final price is a price someone paid: a fixed-price listing's sold count
+        # is cumulative at no known price (offers, earlier prices), and a rejected listing (blocked,
+        # wrong slab, another card's photo) is not this card.
         rejected = c.execute(
             "SELECT 1 FROM blocked WHERE item_id = ?", (cand["item_id"],)
         ).fetchone() or (json.loads(cand["art"]) if cand["art"] else {}).get("verdict") in (
             "differs",
             "unwanted",
         )
-        if o["status"] == "sold" and not (cand["obo"] and not cand["auction"]) and not rejected:
+        if o["status"] == "sold" and cand["auction"] and not rejected:
             w = c.execute("SELECT id, spec FROM wants WHERE id = ?", (cand["want_id"],)).fetchone()
             if w:
                 spec = json.loads(w["spec"])

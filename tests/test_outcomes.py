@@ -157,13 +157,6 @@ def test_live_listings_and_auctions_still_running_are_not_asked(db):
     assert api.asked == ["8"]
 
 
-def test_a_best_offer_sale_is_not_a_comp_because_the_price_may_be_an_offer(db):
-    listing(db, "1", auction=0, obo=1)
-    outcomes.check(db, FakeAPI({"1": item(end=None, buying=("FIXED_PRICE",))}), NOW)
-    assert outcome(db, "1")["status"] == "sold"
-    assert db.one("SELECT count(*) AS n FROM sold")["n"] == 0
-
-
 def test_a_sweep_survives_an_outcome_lookup_that_raises(tmp_path, monkeypatch):
     monkeypatch.setenv("SLEEPER_DATA", str(tmp_path))
     monkeypatch.setattr(sweep.notify, "send", lambda *a, **k: "sent")
@@ -252,7 +245,7 @@ def test_a_listing_found_ended_is_retired_and_not_rated_again(db):
 def test_best_offer_outcome_shows_the_asking_price_not_a_final(web):
     d, client = web
     listing(d, "1", auction=0, obo=1)
-    outcomes.check(d, FakeAPI({"1": item(end=None, buying=("FIXED_PRICE",))}), NOW)
+    outcomes.check(d, FakeAPI({"1": item(buying=("FIXED_PRICE",))}), NOW)
     html = client.get("/ended").text
     assert "Listed at" in html and "sale price is unknown" in html and "<dt>Final</dt>" not in html
 
@@ -263,3 +256,33 @@ def test_max_bid_keeps_its_cents(web):
     d.run("UPDATE listings SET usd = 480, cap = 500, ship = 0, bids = '2 bids', cur = 'USD'")
     html = client.get("/?show=all").text
     assert "Max bid $499.98" in html and "max bid $499.98" in html
+
+
+def test_sold_out_stock_without_an_end_date_is_not_final(db):
+    listing(db, "1", auction=0)
+    got = item(end=None, buying=("FIXED_PRICE",))  # OUT_OF_STOCK, sold 1, no end: may be refilled
+    outcomes.check(db, FakeAPI({"1": got}), NOW)
+    assert outcome(db, "1")["status"] == "on_sale"
+
+
+def test_fixed_price_sales_are_not_comps_but_auction_sales_are(db):
+    listing(db, "1", auction=0)
+    outcomes.check(db, FakeAPI({"1": item(buying=("FIXED_PRICE",))}), NOW)  # ended by date
+    assert outcome(db, "1")["status"] == "sold"
+    assert db.one("SELECT count(*) AS n FROM sold")["n"] == 0
+
+
+def test_a_finished_listing_stays_retired_when_a_search_returns_it(tmp_path, monkeypatch):
+    monkeypatch.setenv("SLEEPER_DATA", str(tmp_path))
+    monkeypatch.setattr(sweep.notify, "send", lambda *a, **k: "sent")
+    s = config.load()
+    d = DB(s.db_path)
+    d.save_want({"set": "DBS", "who": "Vegito", "q": "v", "max": {"any": 1150}})
+    sweep.run(d, s, browser=lambda: FakeBrowser([ROW]))
+    assert d.one("SELECT active FROM listings WHERE item_id = '111'")["active"] == 1
+    d.run(
+        "INSERT INTO outcomes (item_id, status, checked_at, first_checked_at) "
+        "VALUES ('111', 'sold', '2026-11-10', '2026-11-10')"
+    )
+    sweep.run(d, s, browser=lambda: FakeBrowser([ROW]))
+    assert d.one("SELECT active FROM listings WHERE item_id = '111'")["active"] == 0

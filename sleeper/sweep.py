@@ -205,7 +205,9 @@ def store(db: DB, run_id: int, found: list[dict], sold: list[dict], searched: li
                        ends = excluded.ends, cur = excluded.cur,
                        img = excluded.img, cap = excluded.cap, deal = excluded.deal,
                        last_seen = excluded.last_seen, last_run = excluded.last_run,
-                       low_usd = min(listings.low_usd, excluded.usd), active = 1""",
+                       low_usd = min(listings.low_usd, excluded.usd),
+                       active = NOT EXISTS (SELECT 1 FROM outcomes o WHERE o.item_id = listings.item_id
+                                            AND o.status IN ('sold', 'unsold'))""",
                 {**f, "now": now, "run": run_id},
             )
         for want_id, kind in searched:

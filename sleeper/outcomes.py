@@ -22,8 +22,14 @@ GIVE_UP_DAYS = 30  # and not at all this long after the first check
 STOP_AFTER_FAILURES = 5  # consecutive failed calls: eBay is down, leave the rest for later
 FINAL = ("sold", "unsold")
 ITEM_NOT_FOUND = {11001, 11003}  # Browse errorIds: no such item / legacy item
-MISSING = {"final_usd": None, "currency": "", "bids": None, "sold_qty": None,
-           "status": "missing", "ended_at": None}  # fmt: skip
+MISSING = {
+    "final_usd": None,
+    "currency": "",
+    "bids": None,
+    "sold_qty": None,
+    "status": "missing",
+    "ended_at": None,
+}
 
 
 def _num(x: Any) -> float | None:

@@ -247,7 +247,7 @@ def test_best_offer_outcome_shows_the_asking_price_not_a_final(web):
     listing(d, "1", auction=0, obo=1)
     outcomes.check(d, FakeAPI({"1": item(buying=("FIXED_PRICE",))}), NOW)
     html = client.get("/ended").text
-    assert "Listed at" in html and "sale price is unknown" in html and "<dt>Final</dt>" not in html
+    assert "Listed at" in html and "asking price" in html and "<dt>Final</dt>" not in html
 
 
 def test_max_bid_keeps_its_cents(web):
@@ -322,3 +322,11 @@ def test_a_finished_listing_keeps_its_deal_flag_when_a_search_returns_it(tmp_pat
     )
     sweep.run(d, s, browser=lambda: FakeBrowser([ROW]))
     assert d.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0
+
+
+def test_an_ended_fixed_price_listing_with_no_sales_count_stays_unresolved(db):
+    listing(db, "1", auction=0)
+    got = item(buying=("FIXED_PRICE",))
+    got["estimatedAvailabilities"] = [{"estimatedAvailabilityStatus": "OUT_OF_STOCK"}]
+    outcomes.check(db, FakeAPI({"1": got}), NOW)
+    assert outcome(db, "1")["status"] == "on_sale"

@@ -60,6 +60,8 @@ def parse(item: dict, now: dt.datetime | None = None) -> dict:
         sold_qty = 1 if (bids or 0) > 0 else 0  # an auction's sold count is missing: bids decide
     if item.get("reservePriceMet") is False:  # bids that never met the reserve are not a sale
         sold_qty = 0
+    if ended and sold_qty is None:
+        ended = False  # no sales count at all: unresolved, not "unsold"
     sold = ended and (sold_qty or 0) >= 1
     if sold and not (final and final > 0):
         ended = sold = False  # a sale with no usable price is an incomplete answer: ask again

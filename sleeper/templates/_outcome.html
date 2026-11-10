@@ -3,8 +3,8 @@
 <dl class="outcome">
   <div><dt>Result</dt><dd><b class="{{ 'ok' if o.status == 'sold' else 'muted' }}">{{ 'Sold' if o.status == 'sold' else 'Not sold' }}</b>{% if o.ended_at %}, ended {{ o.ended_at[:10] }}{% endif %}</dd></div>
   <div><dt>Sleeper saw</dt><dd>{{ r.usd | money }}{% if r.low_usd and r.low_usd < r.usd %} (low {{ r.low_usd | money }}){% endif %}{% if r.bids %}, {{ r.bids }}{% endif %}</dd></div>
-  {% if o.final_usd and r.obo and not r.auction %}
-  <div><dt>Listed at</dt><dd>{{ o.final_usd | money }} (offers accepted, so the sale price is unknown)</dd></div>
+  {% if o.final_usd and not r.auction %}
+  <div><dt>Listed at</dt><dd>{{ o.final_usd | money }} (asking price; what a fixed-price sale closed at is not known)</dd></div>
   {% elif o.final_usd %}
   <div><dt>Final</dt><dd><b>{{ o.final_usd | money }}</b>{% if o.bids is not none and r.auction %}, {{ o.bids }} bid{{ 's' if o.bids != 1 }}{% endif %}</dd></div>
   {% if r.cap %}

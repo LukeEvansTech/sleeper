@@ -197,7 +197,9 @@ def store(db: DB, run_id: int, found: list[dict], sold: list[dict], searched: li
                        time_left, obo, img, cap, deal, first_seen, last_seen, first_run, last_run,
                        low_usd, active, ends, cur)
                    VALUES (:item_id, :kind, :want_id, :title, :usd, :ship, :star, :auction, :bids,
-                       :time_left, :obo, :img, :cap, :deal, :now, :now, :run, :run, :usd, 1, :ends, :cur)
+                       :time_left, :obo, :img, :cap, :deal, :now, :now, :run, :run, :usd,
+                       NOT EXISTS (SELECT 1 FROM outcomes o WHERE o.item_id = :item_id
+                                   AND o.status IN ('sold', 'unsold')), :ends, :cur)
                    ON CONFLICT(item_id, kind) DO UPDATE SET
                        want_id = excluded.want_id, title = excluded.title, usd = excluded.usd,
                        ship = excluded.ship, star = excluded.star, auction = excluded.auction,

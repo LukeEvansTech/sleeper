@@ -5,11 +5,13 @@
   <div><dt>Sleeper saw</dt><dd>{{ r.usd | money }}{% if r.low_usd and r.low_usd < r.usd %} (low {{ r.low_usd | money }}){% endif %}{% if r.bids %}, {{ r.bids }}{% endif %}</dd></div>
   {% if o.final_usd and not r.auction %}
   <div><dt>Listed at</dt><dd>{{ o.final_usd | money }} (asking price; what a fixed-price sale closed at is not known)</dd></div>
-  {% elif o.final_usd %}
+  {% elif o.final_usd and o.bids %}
   <div><dt>Final</dt><dd><b>{{ o.final_usd | money }}</b>{% if o.bids is not none and r.auction %}, {{ o.bids }} bid{{ 's' if o.bids != 1 }}{% endif %}</dd></div>
   {% if r.cap %}
   {% set gap = landed(r, o.final_usd) - r.cap %}
   <div><dt>Ceiling {{ r.cap | money }}</dt><dd class="{{ 'warn' if gap > 0 else 'ok' }}">{{ 'over by' if gap > 0 else 'under by' }} {{ (gap | abs) | money }} landed</dd></div>
   {% endif %}
+  {% elif o.status == 'sold' %}
+  <div><dt>Final</dt><dd>unknown (sold without a bid, so no closing price)</dd></div>
   {% endif %}
 </dl>

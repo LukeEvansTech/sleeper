@@ -342,3 +342,25 @@ def test_an_auction_closed_without_bids_adds_no_comp_and_missing_counts_wait(db)
     outcomes.check(db, FakeAPI({"1": offer, "2": blank}), NOW)
     assert outcome(db, "1")["status"] == "sold" and outcome(db, "2")["status"] == "on_sale"
     assert db.one("SELECT count(*) AS n FROM sold")["n"] == 0
+
+
+def test_a_no_bid_auction_sale_shows_no_final_price(web):
+    d, client = web
+    listing(d, "1")
+    outcomes.check(d, FakeAPI({"1": item(bids=0)}), NOW)
+    html = client.get("/ended").text
+    assert "sold without a bid" in html and "<dt>Final</dt><dd><b>" not in html
+
+
+def test_a_re_added_want_does_not_revive_an_ended_item(tmp_path, monkeypatch):
+    monkeypatch.setenv("SLEEPER_DATA", str(tmp_path))
+    monkeypatch.setattr(sweep.notify, "send", lambda *a, **k: "sent")
+    s = config.load()
+    d = DB(s.db_path)
+    d.save_want({"set": "DBS", "who": "Vegito", "q": "v", "max": {"any": 1150}})
+    d.run(
+        "INSERT INTO outcomes (item_id, status, checked_at, first_checked_at) "
+        "VALUES ('111', 'sold', '2026-11-10', '2026-11-10')"
+    )
+    sweep.run(d, s, browser=lambda: FakeBrowser([ROW]))  # a new listing row for an ended item
+    assert d.one("SELECT active FROM listings WHERE item_id = '111'")["active"] == 0

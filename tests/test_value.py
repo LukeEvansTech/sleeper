@@ -163,3 +163,13 @@ def test_a_bid_at_the_median_does_not_claim_there_are_no_comps():
     cmp = value.comps(sold("psa", "2", 100), TODAY)
     v = value.assess(auction(100, cap=300), W, cmp, [], {}, 39.99, 6, now=NOW)
     assert "already at the $100 sold median" in v.advice
+
+
+def test_running_auction_that_usually_sells_within_the_ceiling_is_a_snipe_deal():
+    cmp = value.comps(sold("psa", "2", 700, 720, 740), TODAY)
+    v = value.assess(auction(300, cap=1000), W, cmp, [], {}, 39.99, 6, now=NOW)
+    assert v.is_deal and v.snipeable and v.snipe == 662.39  # 0.92 x 720 = 662.40
+    assert "likely to finish near $720" in v.advice and "bid up to $662.39" in v.advice
+    # already bid past the limit: nothing left to snipe
+    gone = value.assess(auction(690, cap=1000), W, cmp, [], {}, 39.99, 6, now=NOW)
+    assert not gone.is_deal

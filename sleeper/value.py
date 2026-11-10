@@ -97,6 +97,8 @@ class Verdict:
     median: float | None = None  # same kind and star bucket, 90 days
     low: float | None = None
     high: float | None = None
+    # a running auction that usually sells within the ceiling and can still be bid on
+    snipeable: bool = False
 
     @property
     def market(self) -> float | None:
@@ -108,6 +110,8 @@ class Verdict:
         """Under the ceiling is not enough: the price must also beat recent sales, or grading must pay."""
         if self.held:
             return False
+        if self.snipeable:
+            return True
         return self.rating in ("great", "good", "unknown") or self.buy_to_grade
 
 
@@ -347,6 +351,10 @@ def assess(
                     else advice
                 )
 
+    # A running auction is a deal when its likely finish is within the ceiling and a max bid is
+    # still possible: a snipe at that bid wins it under the market or loses it for nothing.
+    snipeable = running and same is not None and snipe is not None and not held
+
     star_txt = f"{star}★ " if star != "-" else ""
     headline = f"{w['who']} {star_txt}{'PSA 10' if kind == 'psa' else 'raw'} ${total:,.0f}"
     return Verdict(
@@ -365,4 +373,5 @@ def assess(
         median=same.median if same else None,
         low=same.low if same else None,
         high=same.high if same else None,
+        snipeable=snipeable,
     )

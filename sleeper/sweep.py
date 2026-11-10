@@ -203,7 +203,9 @@ def store(db: DB, run_id: int, found: list[dict], sold: list[dict], searched: li
                        ship = excluded.ship, star = excluded.star, auction = excluded.auction,
                        bids = excluded.bids, time_left = excluded.time_left, obo = excluded.obo,
                        ends = excluded.ends, cur = excluded.cur,
-                       img = excluded.img, cap = excluded.cap, deal = excluded.deal,
+                       img = excluded.img, cap = excluded.cap,
+                       deal = CASE WHEN EXISTS (SELECT 1 FROM outcomes o WHERE o.item_id = listings.item_id
+                                  AND o.status IN ('sold', 'unsold')) THEN listings.deal ELSE excluded.deal END,
                        last_seen = excluded.last_seen, last_run = excluded.last_run,
                        low_usd = min(listings.low_usd, excluded.usd),
                        active = NOT EXISTS (SELECT 1 FROM outcomes o WHERE o.item_id = listings.item_id

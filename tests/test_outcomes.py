@@ -286,3 +286,39 @@ def test_a_finished_listing_stays_retired_when_a_search_returns_it(tmp_path, mon
     )
     sweep.run(d, s, browser=lambda: FakeBrowser([ROW]))
     assert d.one("SELECT active FROM listings WHERE item_id = '111'")["active"] == 0
+
+
+def test_an_auction_records_its_winning_bid_not_the_buy_it_now_price(db):
+    listing(db, "1")
+    got = {**item("200.00"), "currentBidPrice": {"value": "72.00", "currency": "USD"}}
+    outcomes.check(db, FakeAPI({"1": got}), NOW)
+    assert outcome(db, "1")["final_usd"] == 72.0
+    assert db.one("SELECT usd FROM sold WHERE item_id = '1'")["usd"] == 72.0
+
+
+def test_a_sale_with_no_price_is_asked_about_again(db):
+    listing(db, "1")
+    got = item()
+    got["price"] = {}
+    api = FakeAPI({"1": got})
+    outcomes.check(db, api, NOW)
+    assert outcome(db, "1")["status"] == "on_sale"
+    api.answers["1"] = item()
+    outcomes.check(db, api, NOW + dt.timedelta(hours=21))
+    assert outcome(db, "1")["status"] == "sold"
+
+
+def test_a_finished_listing_keeps_its_deal_flag_when_a_search_returns_it(tmp_path, monkeypatch):
+    monkeypatch.setenv("SLEEPER_DATA", str(tmp_path))
+    monkeypatch.setattr(sweep.notify, "send", lambda *a, **k: "sent")
+    s = config.load()
+    d = DB(s.db_path)
+    d.save_want({"set": "DBS", "who": "Vegito", "q": "v", "max": {"any": 1150}})
+    sweep.run(d, s, browser=lambda: FakeBrowser([ROW]))
+    d.run("UPDATE listings SET deal = 0 WHERE item_id = '111'")  # rated down while it ran
+    d.run(
+        "INSERT INTO outcomes (item_id, status, checked_at, first_checked_at) "
+        "VALUES ('111', 'sold', '2026-11-10', '2026-11-10')"
+    )
+    sweep.run(d, s, browser=lambda: FakeBrowser([ROW]))
+    assert d.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0

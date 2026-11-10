@@ -35,10 +35,12 @@ def parse(item: dict, now: dt.datetime | None = None) -> dict:
     now = now or dt.datetime.now(dt.timezone.utc)
     avail: dict = next(iter(item.get("estimatedAvailabilities") or []), {}) or {}
     price = item.get("price") or {}
-    # an auction's price is its final price once it ended; currentBidPrice is the fallback
-    final = _num(price.get("value"))
-    if final is None:
+    # An auction's winning bid is currentBidPrice; its `price` may be the Buy It Now amount.
+    final = None
+    if "AUCTION" in (item.get("buyingOptions") or []):
         final = _num((item.get("currentBidPrice") or {}).get("value"))
+    if final is None:
+        final = _num(price.get("value"))
     cur = price.get("convertedFromCurrency") or price.get("currency") or ""
     end = None
     try:
@@ -58,7 +60,9 @@ def parse(item: dict, now: dt.datetime | None = None) -> dict:
         sold_qty = 1 if (bids or 0) > 0 else 0  # an auction's sold count is missing: bids decide
     if item.get("reservePriceMet") is False:  # bids that never met the reserve are not a sale
         sold_qty = 0
-    sold = ended and (sold_qty or 0) >= 1 and final is not None and final > 0
+    sold = ended and (sold_qty or 0) >= 1
+    if sold and not (final and final > 0):
+        ended = sold = False  # a sale with no usable price is an incomplete answer: ask again
     return {
         "final_usd": final,
         "currency": cur,

@@ -171,7 +171,7 @@ def check(db: DB, source: Any, now: dt.datetime | None = None, limit: int = MAX_
                 item = None
             stats["asked"] += 1
             code = getattr(source, "last_status", 0)
-            if item is None and 400 <= code < 500 and code != 429:
+            if item is None and code in (404, 410):
                 # eBay answered that this item is not there: not an outage, so the pass goes on.
                 item_row: dict | None = {**MISSING}
             else:

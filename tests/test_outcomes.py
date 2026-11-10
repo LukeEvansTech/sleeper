@@ -389,3 +389,33 @@ def test_items_ebay_says_are_gone_do_not_stop_the_pass(db):
     api = Gone({"6": item()})
     stats = outcomes.check(db, api, NOW)
     assert stats["missing"] == 6 and stats["sold"] == 1 and stats["error"] == 0
+
+
+def test_auth_failures_are_errors_not_missing_items(db):
+    for i in range(7):
+        listing(db, str(i))
+
+    class Denied(FakeAPI):
+        last_status = 0
+
+        def item(self, item_id):
+            super().item(item_id)
+            self.last_status = 401
+            return None
+
+    stats = outcomes.check(db, Denied({}), NOW)
+    assert stats["missing"] == 0 and stats["error"] == outcomes.STOP_AFTER_FAILURES
+
+
+def test_an_ended_auction_returned_before_its_outcome_keeps_its_rated_flag(db):
+    listing(db, "9", active=1, ends="2026-11-01T10:00")
+    db.run("UPDATE listings SET deal = 0 WHERE item_id = '9'")  # rated down while it ran
+    found = {
+        "item_id": "9", "kind": "psa", "want_id": 1, "title": "PSA 10 Vegito", "usd": 33,
+        "ship": 5, "star": "2", "auction": 1, "bids": "3 bids", "time_left": "", "obo": 0,
+        "img": "", "cap": 40, "deal": 1, "ends": "2026-11-01T10:00", "cur": "USD",
+    }  # fmt: skip
+    sweep.store(db, 99, [found], [], [])
+    assert db.one("SELECT deal FROM listings WHERE item_id = '9'")["deal"] == 0
+    sweep.store(db, 100, [{**found, "item_id": "8", "ends": "2099-01-01T10:00"}], [], [])
+    assert db.one("SELECT deal FROM listings WHERE item_id = '8'")["deal"] == 1

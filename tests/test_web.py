@@ -40,9 +40,12 @@ ROW = {
     "id": "111",
     "title": "PSA 10 Vegito BT7-118 SPR Dragon Ball Super",
     "price": "$700.00",
-    "text": "PSA 10 Vegito BT7-118 SPR $700.00 +$5.64 delivery 3 bids 1d 2h left",
+    "text": "PSA 10 Vegito BT7-118 SPR $700.00 +$5.64 delivery 3 bids 35m left",
     "img": "https://i.ebayimg.com/images/g/x/s-l140.jpg",
 }
+
+
+BIN = {**ROW, "text": "PSA 10 Vegito BT7-118 SPR $700.00 +$5.64 delivery"}  # buy it now
 
 
 def test_import_sweep_and_deal_page(env, monkeypatch):
@@ -69,7 +72,7 @@ def test_import_sweep_and_deal_page(env, monkeypatch):
     page = client.get("/deal/222/psa")
     assert page.status_code == 200
     assert "Vegito" in page.text and "$656" in page.text
-    assert "snipe up to" in page.text
+    assert "Max bid" in page.text and "<b>$1,144</b>" in page.text
     assert client.get("/").status_code == 200
     assert client.get(f"/run/{run1}").status_code == 200
     assert client.get("/wants").status_code == 200
@@ -269,7 +272,7 @@ def test_under_ceiling_but_above_sold_prices_is_not_a_deal(env, monkeypatch):
     client.post("/api/sold", json={"sold": _sold(3, 600)})
     sweep.run(db, s, browser=lambda: FakeBrowser([ROW]))  # $705.64 landed, 118% of the median
     assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0
-    cheap = {**ROW, "id": "333", "price": "$400.00"}
+    cheap = {**BIN, "id": "333", "price": "$400.00"}
     sweep.run(db, s, browser=lambda: FakeBrowser([ROW, cheap]))
     assert db.one("SELECT deal FROM listings WHERE item_id = '333'")["deal"] == 1
     assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0
@@ -437,7 +440,7 @@ def test_deal_page_shows_price_against_market(env, monkeypatch):
         json={"wants": [{"set": "DBS", "who": "Vegito", "q": "v", "max": {"any": 1150}}]},
     )
     client.post("/api/sold", json={"sold": _sold(3, 1000)})
-    sweep.run(db, s, browser=lambda: FakeBrowser([ROW]))
+    sweep.run(db, s, browser=lambda: FakeBrowser([BIN]))
     page = client.get("/deal/111/psa").text
     assert "71% of market" in page and "sold median $1,000" in page
     assert "aria-current=page" in page
@@ -682,7 +685,8 @@ def test_sweep_stores_when_each_auction_ends(env, monkeypatch):
         "text": "PSA 10 Vegito BT7-118 SPR $700.00 +$5.64 delivery 2 bids 35m left",
     }
     before = dt.datetime.now()
-    sweep.run(db, s, browser=lambda: FakeBrowser([ROW, short]))
+    long = {**ROW, "text": ROW["text"].replace("35m", "1d 2h")}
+    sweep.run(db, s, browser=lambda: FakeBrowser([long, short]))
     got = {r["item_id"]: r for r in db.all("SELECT item_id, time_left, ends FROM listings")}
     assert got["333"]["time_left"] == "35m left"
     end = dt.datetime.fromisoformat(got["333"]["ends"])

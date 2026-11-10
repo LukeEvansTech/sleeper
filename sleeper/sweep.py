@@ -14,7 +14,7 @@ import re
 import threading
 from typing import Any, Callable, Protocol
 
-from . import match, notify, photos, slab, value
+from . import match, notify, outcomes, photos, slab, value
 from .config import Settings
 from .db import DB
 from .ebay import Browser
@@ -732,6 +732,8 @@ def run(
             store(db, run_id, list(uniq.values()), sold, searched)
             for w in wants:
                 retire_unsearched(db, w)
+            got = outcomes.check(db, b)  # sales join the comps before this sweep rates anything
+            say(f"outcomes: {got['asked']} checked, {got['sold']} sold, {got['unsold']} unsold")
             demoted = rate(db, s, run_id, by_id)
             say(f"price check: {demoted} under the ceiling but not below recent sales")
             say("photo check")

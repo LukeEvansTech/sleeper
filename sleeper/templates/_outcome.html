@@ -1,0 +1,13 @@
+{# How a listing ended: r.outcome from the outcomes table, r.low_usd / r.usd what sleeper saw. #}
+{% set o = r.outcome %}
+<dl class="outcome">
+  <div><dt>Result</dt><dd><b class="{{ 'ok' if o.status == 'sold' else 'muted' }}">{{ 'Sold' if o.status == 'sold' else 'Not sold' }}</b>{% if o.ended_at %}, ended {{ o.ended_at[:10] }}{% endif %}</dd></div>
+  <div><dt>Sleeper saw</dt><dd>{{ r.usd | money }}{% if r.low_usd and r.low_usd < r.usd %} (low {{ r.low_usd | money }}){% endif %}{% if r.bids %}, {{ r.bids }}{% endif %}</dd></div>
+  {% if o.final_usd %}
+  <div><dt>Final</dt><dd><b>{{ o.final_usd | money }}</b>{% if o.bids is not none and r.auction %}, {{ o.bids }} bid{{ 's' if o.bids != 1 }}{% endif %}</dd></div>
+  {% if r.cap %}
+  {% set gap = landed(r, o.final_usd) - r.cap %}
+  <div><dt>Ceiling {{ r.cap | money }}</dt><dd class="{{ 'warn' if gap > 0 else 'ok' }}">{{ 'over by' if gap > 0 else 'under by' }} {{ (gap | abs) | money }} landed</dd></div>
+  {% endif %}
+  {% endif %}
+</dl>

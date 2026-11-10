@@ -17,6 +17,7 @@
     <span class="sx-muted" style="color:{{ c.muted }};">
       {%- if r.cap %}ceiling {{ r.cap | money }}{% endif %}
       {%- if r.auction %}{{ ', ' if r.cap }}{{ r.bids or 'no bids' }}{% if r.ends %}, ends {{ r.ends | when }}{% endif %}{% else %}{{ ', ' if r.cap }}buy it now{% endif %}
+      {%- if r.auction and r.v.snipe %}, <b class="sx-ink" style="color:{{ c.ink }};">max bid {{ r.v.snipe | money }}</b>{% endif %}
       {%- if r.obo %}, takes offers{% endif %}
     </span>
   </td>

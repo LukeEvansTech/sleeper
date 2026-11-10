@@ -88,7 +88,11 @@ class Verdict:
     reasons: list[str] = field(default_factory=list)
     total: float = 0.0
     grade_cost: float | None = None
-    max_bid: float | None = None
+    max_bid: float | None = None  # the limit in whole dollars; the Gixen amount is `snipe`
+    snipe: float | None = None
+    limit_why: str = ""
+    expected: float | None = None  # a running auction's likely finish, landed
+    held: bool = False  # a running auction is never a deal on its bid so far
     buy_to_grade: bool = False
     median: float | None = None  # same kind and star bucket, 90 days
     low: float | None = None
@@ -102,7 +106,66 @@ class Verdict:
     @property
     def is_deal(self) -> bool:
         """Under the ceiling is not enough: the price must also beat recent sales, or grading must pay."""
+        if self.held:
+            return False
         return self.rating in ("great", "good", "unknown") or self.buy_to_grade
+
+
+# eBay US bid increments: (current bid at or above, increment), in cents.
+INCREMENTS = [
+    (0, 5),
+    (100, 25),
+    (500, 50),
+    (2500, 100),
+    (10000, 250),
+    (25000, 500),
+    (50000, 1000),
+    (100000, 2500),
+    (250000, 5000),
+    (500000, 10000),
+]
+FINAL_WINDOW_H = 1.0  # an auction this close to its end, with no comps, is rated on its bid
+
+
+def increment(current: float) -> float:
+    """The smallest rise eBay accepts over this current bid (US table, USD)."""
+    cents = round(current * 100)
+    step = [inc for floor, inc in INCREMENTS if cents >= floor][-1]
+    return step / 100
+
+
+def snipe_bid(limit: float, current: float | None = None, bids: int = 1) -> float | None:
+    """The amount to enter in Gixen: just under the limit, avoiding the round amounts other bidders use.
+
+    Steps down from the limit a cent at a time until the cents are not a multiple of 5 and not
+    .01 or .99. None when the limit is below the next minimum bid (current bid plus one increment,
+    or the opening price itself while there are no bids), or when nothing positive is left."""
+    if not math.isfinite(limit) or limit <= 0:
+        return None
+    cents = math.floor(round(limit * 100, 6))
+    while cents > 0 and (cents % 5 == 0 or cents % 100 in (1, 99)):
+        cents -= 1
+    if cents <= 0:
+        return None
+    if current is not None:
+        need = round(current * 100) + (round(increment(current) * 100) if bids else 0)
+        if cents < need:
+            return None
+    return cents / 100
+
+
+def hours_left(listing: dict, now: dt.datetime | None = None) -> float | None:
+    """Hours until an auction ends (negative once it has), None when its end is not known."""
+    try:
+        at = dt.datetime.fromisoformat(listing["ends"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return (at - (now or dt.datetime.now())).total_seconds() / 3600
+
+
+def _bid_count(listing: dict) -> int:
+    m = re.search(r"\d+", listing.get("bids") or "")
+    return int(m.group(0)) if m else 0
 
 
 def _pct(a: float, b: float) -> str:
@@ -117,11 +180,14 @@ def assess(
     set_rates: dict,
     fee: float,
     grade_ship: float,
+    now: dt.datetime | None = None,
 ) -> Verdict:
     kind, star, usd = listing["kind"], listing["star"], float(listing["usd"])
     ship = listing.get("ship")
     total = usd + (ship or 0)
     cap = listing.get("cap")
+    left = hours_left(listing, now) if listing.get("auction") else None
+    running = bool(listing.get("auction")) and (left is None or left > 0)
     wid = int(w.get("family") or w["_id"])  # split prints share their card's comps
     ten, raw = cmp.get((wid, "psa", star)), cmp.get((wid, "raw", star))
     rate, rate_src = gem_rate(w, star, pop_rows, set_rates)
@@ -140,20 +206,29 @@ def assess(
     same = ten if kind == "psa" else raw
     label = "PSA 10" if kind == "psa" else "raw"
     ratio = None
+    expected = total
+    if running and same:
+        # Bids rise, mostly at the end: judge the likely finish, not the bid so far.
+        expected = max(total, same.median)
     if same:
-        ratio = total / same.median
+        ratio = expected / same.median
         reasons.append(
             f"{_pct(total, same.median)} of the {label} sold median ${same.median:,.0f} "
             f"({same.count} sale{'s' * (same.count != 1)} in 90 days, ${same.low:,.0f}-${same.high:,.0f}, "
             f"last {same.last})"
         )
+        if running and expected > total:
+            reasons.append(
+                f"Auction still running: expected to finish near the ${same.median:,.0f} median, "
+                f"not the ${total:,.2f} bid so far"
+            )
     else:
         reasons.append(f"No {label} sales of this card recorded in the last 90 days")
 
     grade_cost = None
     buy_to_grade = False
     if rate:
-        base, what = (total, "this copy") if kind == "raw" else (None, "")
+        base, what = (expected, "this copy") if kind == "raw" else (None, "")
         if kind != "raw" and raw:
             base, what = raw.median, f"a raw copy at the ${raw.median:,.0f} median"
         if base is not None:
@@ -173,6 +248,15 @@ def assess(
         rating = "fair"
     else:
         rating = "high"
+
+    held = False
+    if running:
+        if not same:  # no comps: the finish is unknowable, so only the last hour counts
+            held = left is None or left > FINAL_WINDOW_H
+            if held:
+                rating = "unknown"
+        elif cap is not None and expected > cap:
+            held = True  # even the likely finish is over the ceiling
 
     if kind == "psa":
         if grade_cost and grade_cost < total * 0.8:
@@ -210,23 +294,54 @@ def assess(
         else:
             advice = "Judge on the photos and your ceiling; there is little sales history."
 
-    max_bid = None
+    max_bid = snipe = None
+    limit_why = ""
     if listing.get("auction"):
         # Keep the bid inside what still counts as a deal (Verdict.is_deal): "good" or better against
         # the same kind's sold median, or for a raw copy, grading under 85% of the PSA 10 median.
-        anchors = [
-            x
-            for x in (cap, ten.median * 0.92 if kind == "psa" and ten else None)
-            if x and math.isfinite(x)
-        ]
+        anchors: list[tuple[float, str]] = []
+        if cap:
+            anchors.append((cap, f"your ceiling of ${cap:,.0f}"))
+        if same:
+            anchors.append(
+                (same.median * 0.95, f"95% of the {label} sold median ${same.median:,.0f}")
+            )
+        if kind == "psa" and ten:
+            anchors.append((ten.median * 0.92, f"92% of the PSA 10 sold median ${ten.median:,.0f}"))
         if kind == "raw" and ten and rate:
-            anchors.append(ten.median * 0.84 * rate - fee - grade_ship)
+            anchors.append(
+                (
+                    ten.median * 0.84 * rate - fee - grade_ship,
+                    f"what still beats grading (PSA 10 median ${ten.median:,.0f})",
+                )
+            )
         elif kind == "raw" and raw:
-            anchors.append(raw.median * 0.92)
-        anchors = [x for x in anchors if math.isfinite(x)]
+            anchors.append((raw.median * 0.92, f"92% of the raw sold median ${raw.median:,.0f}"))
+        anchors = [x for x in anchors if math.isfinite(x[0])]
         if anchors:
-            max_bid = float(max(0, math.floor(min(anchors) - (ship or 0))))  # never round up
-            advice += f" Auction: a snipe up to ${max_bid:,.0f} keeps it a deal."
+            low, why = min(anchors)
+            limit = low - (ship or 0)
+            max_bid = float(max(0, math.floor(limit)))  # never round up
+            snipe = snipe_bid(limit, usd, _bid_count(listing))
+            limit_why = f"The lower of {why}" + (f", less ${ship:,.2f} delivery" if ship else "")
+            if running and expected > total and same:
+                finish = f"Auction: likely to finish near ${expected:,.0f} (sold median)"
+            elif running:
+                finish = "Auction: no sold median to judge the finish by"
+            else:
+                finish = "Auction"
+            if snipe is not None:
+                advice = f"{finish}; bid up to ${snipe:,.2f}." if running else advice
+                if not running:
+                    advice += f" Auction: max bid ${snipe:,.2f} keeps it a deal."
+            else:
+                max_bid = None
+                limit_why += ". The limit is already below the next minimum bid"
+                advice = (
+                    f"{finish}; the limit is already below the next minimum bid."
+                    if running
+                    else advice
+                )
 
     star_txt = f"{star}★ " if star != "-" else ""
     headline = f"{w['who']} {star_txt}{'PSA 10' if kind == 'psa' else 'raw'} ${total:,.0f}"
@@ -238,6 +353,10 @@ def assess(
         total,
         grade_cost,
         max_bid,
+        snipe,
+        limit_why,
+        expected if running else None,
+        held,
         buy_to_grade,
         median=same.median if same else None,
         low=same.low if same else None,

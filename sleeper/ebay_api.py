@@ -264,3 +264,9 @@ class BrowseAPI:
         imgs: list[Any] = [got.get("image") or {}] + list(got.get("additionalImages") or [])
         urls = [re.sub(r"s-l\d+", "s-l1600", i.get("imageUrl", "")) for i in imgs]
         return list(dict.fromkeys(u for u in urls if u))
+
+    def item(self, item_id: str) -> dict | None:
+        """The listing as eBay shows it now, ended or not; None when every try failed."""
+        return self._get(
+            "/buy/browse/v1/item/get_item_by_legacy_id", {"legacy_item_id": str(item_id)}
+        )

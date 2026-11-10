@@ -11,11 +11,13 @@
   {% set v = r.v %}{% set big = false %}{% include "_meter.html" %}
   <div class="foot-row">
     {% if r.cap %}<span class="num">ceiling {{ r.cap | money }}</span>{% endif %}
-    {% if r.auction %}<span>{{ r.bids or 'no bids' }}{% if r.time_left %}, {{ r.time_left }}{% endif %}</span>{% endif %}
+    {% if r.auction %}<span>{{ r.bids or 'no bids' }}{% if r.time_left and not r.outcome %}, {{ r.time_left }}{% endif %}</span>{% endif %}
+    {% if r.auction and r.v.snipe and not r.outcome %}<span class="num max-bid">Max bid {{ r.v.snipe | money }}</span>{% endif %}
     {% if r.obo %}<span>offers</span>{% endif %}
     {% if r.artd.verdict == 'match' %}<span class="ok">art matches</span>{% elif r.artd.verdict == 'differs' %}<b class="warn">art differs</b>{% elif r.artd.verdict == 'unclear' %}<span>art unclear</span>{% endif %}
   </div>
-  {% if r.auction and r.active %}
-  <a class="snipe-btn button" href="{{ gixen_link(r.item_id, r.gixen_bid) }}" target="_blank" rel="noopener">Add to Gixen{% if r.gixen_bid %} · up to {{ r.gixen_bid | money }}{% endif %}</a>
+  {% if r.outcome and show_outcome %}{% include "_outcome.html" %}{% endif %}
+  {% if r.auction and r.active and not r.outcome %}
+  <a class="snipe-btn button" href="{{ gixen_link(r.item_id, r.gixen_bid) }}" target="_blank" rel="noopener">Add to Gixen{% if r.gixen_bid %} · max bid {{ r.gixen_bid | money }}{% endif %}</a>
   {% endif %}
 </article>

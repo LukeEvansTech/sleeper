@@ -53,6 +53,17 @@ CREATE TABLE IF NOT EXISTS sold (
     title TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS sold_want ON sold (want_id, kind, star);
+CREATE TABLE IF NOT EXISTS outcomes (
+    item_id TEXT PRIMARY KEY,
+    final_usd REAL,
+    currency TEXT NOT NULL DEFAULT '',
+    bids INTEGER,
+    sold_qty INTEGER,
+    status TEXT NOT NULL,  -- sold | unsold (final), on_sale (still listed), error (eBay gave no answer)
+    ended_at TEXT,
+    checked_at TEXT NOT NULL,
+    first_checked_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS pop (
     id INTEGER PRIMARY KEY,
     set_name TEXT NOT NULL,

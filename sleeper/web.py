@@ -87,12 +87,9 @@ SORTS: dict[str, Callable[[dict], Any]] = {
 
 
 def snipe_bid(r: dict) -> float | None:
-    """The bid a Gixen snipe defaults to: the most that keeps it a deal, else the ceiling less
-    delivery. None when there is no positive, finite amount to offer (Luke types one on Gixen)."""
-    best = r["v"].max_bid
-    if best is None:
-        cap = r.get("cap") or 0
-        best = math.floor(cap - (r.get("ship") or 0)) if math.isfinite(cap) and cap > 0 else 0
+    """The bid a Gixen snipe defaults to: the verdict's max bid (value.snipe_bid). None when there is
+    no bid that keeps it a deal, or it is below the next minimum bid."""
+    best = r["v"].snipe
     return float(best) if best and best > 0 else None
 
 
@@ -123,6 +120,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
     tpl.env.filters["ebay_img"] = ebay_img
     tpl.env.filters["pct"] = pct
     tpl.env.globals["gixen_link"] = gixen_link
+    tpl.env.globals["landed"] = lambda r, usd: usd + (r.get("ship") or 0)
     tpl.env.globals["version"] = s.version
 
     def when(iso: str) -> str:
@@ -180,7 +178,8 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
                 lines.append(head)
                 for r in rows[: summary.MAX_CARDS]:
                     lines.append(
-                        f"- {r['want']['who']}: {money(r['v'].total)} {r['v'].rating} "
+                        f"- {r['want']['who']}: {money(r['v'].total)} {r['v'].rating}"
+                        f"{', max bid ' + money(r['v'].snipe) if r['auction'] and r['v'].snipe else ''} "
                         f"{s.link('/deal/' + r['item_id'] + '/' + r['kind'])}"
                     )
                 lines.append("")
@@ -208,12 +207,17 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
     def scored(rows: list[dict]) -> list[dict]:
         wants = {w["_id"]: w for w in db.wants()}
         cmp, pop = sweep.context(db)
+        outs = {
+            o["item_id"]: dict(o)
+            for o in db.all("SELECT * FROM outcomes WHERE status IN ('sold', 'unsold')")
+        }
         out = []
         for r in rows:
             w = wants.get(r["want_id"])
             if not w:
                 continue
             r = dict(r)
+            r["outcome"] = outs.get(r["item_id"])
             r["want"] = w
             r["v"] = sweep.verdict_for(db, s, r, w, cmp, pop)
             r["artd"] = json.loads(r["art"]) if r.get("art") else {}
@@ -306,6 +310,24 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             last=last,
             running=sweep.LOCK.locked(),
         )
+
+    @app.get("/ended", response_class=HTMLResponse)
+    def ended(request: Request):
+        """Deals and alerts whose listing has since ended, newest first, with how each finished."""
+        rows = scored(
+            [
+                dict(r)
+                for r in db.all(
+                    """SELECT l.* FROM listings l JOIN outcomes o ON o.item_id = l.item_id
+                        WHERE o.status IN ('sold', 'unsold') AND coalesce(json_extract(l.art, '$.verdict'), '') != 'differs'
+                          AND (l.deal = 1 OR EXISTS (SELECT 1 FROM alerts a
+                                 WHERE a.item_id = l.item_id AND a.kind = l.kind))
+                        ORDER BY coalesce(o.ended_at, o.checked_at) DESC, l.item_id"""
+                )
+            ]
+        )
+        sold = sum(1 for r in rows if r["outcome"]["status"] == "sold")
+        return page(request, "ended.html", rows=rows[:400], total=len(rows), sold=sold)
 
     @app.get("/deal/{item_id}/{kind}", response_class=HTMLResponse)
     def deal(request: Request, item_id: str, kind: str):

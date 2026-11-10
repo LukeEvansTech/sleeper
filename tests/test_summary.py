@@ -101,7 +101,7 @@ def baseline(db, s, rows):
 def test_summary_emails_new_deals_with_photos_and_moves_on(env):
     s, db, client = env
     baseline(db, s, [row("1", 700)])
-    sweep_with(db, s, [row("1", 700), row("2", 650, "3 bids 2h 5m left")])
+    sweep_with(db, s, [row("1", 700), row("2", 650, "3 bids 45m left")])
     page = client.get("/summary")
     assert page.status_code == 200 and "1 new deal" in page.text
     assert "Auctions ending in the next 24 hours" in page.text
@@ -113,6 +113,7 @@ def test_summary_emails_new_deals_with_photos_and_moves_on(env):
     assert msg["Message-ID"].endswith("@example.com>") and msg["Date"]
     html = msg.get_body(("html",)).get_content()
     assert "cid:" in html and "https://sleeper.example/deal/2/psa" in html
+    assert "max bid $1,144" in html
     images = [p for p in msg.walk() if p.get_content_type() == "image/jpeg"]
     assert images and all(p["Content-ID"] for p in images)
     assert "https://sleeper.example/deal/2/psa" in msg.get_body(("plain",)).get_content()
@@ -207,7 +208,7 @@ def test_sent_email_has_a_web_copy_and_ended_auctions_drop_out(env):
     s, db, client = env
     assert client.get("/summary/last").status_code == 404
     baseline(db, s, [row("1", 700)])
-    sweep_with(db, s, [row("1", 700), row("2", 650, "3 bids 2h 5m left"), row("3", 640)])
+    sweep_with(db, s, [row("1", 700), row("2", 650, "3 bids 45m left"), row("3", 640)])
     db.run("UPDATE listings SET ends = '2000-01-01T00:00' WHERE item_id = '2'")
     client.post("/summary/send")
     assert FakeSMTP.sent[-1]["Subject"] == "Sleeper: 1 new deal (1 graded)"

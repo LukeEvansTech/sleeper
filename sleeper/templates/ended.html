@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Ended · sleeper{% endblock %}
+{% block body %}
+<section class="head-row">
+  <h1>{{ total }} ended deal{{ 's' if total != 1 }}</h1>
+  <p class="muted small">Deals and alerts whose listing has since ended, newest first: {{ sold }} sold, {{ total - sold }} not sold. Final prices come from eBay.</p>
+</section>
+<div class="grid">
+{% set show_outcome = true %}
+{% for r in rows %}{% include "_card.html" %}{% else %}<p class="muted empty">Nothing has ended yet. Sleeper asks eBay how each dropped deal finished on every sweep.</p>{% endfor %}
+</div>
+{% endblock %}

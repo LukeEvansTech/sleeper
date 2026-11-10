@@ -4,7 +4,7 @@ annotated-types==0.8.0
     # via pydantic
 anyio==4.16.0
     # via starlette
-apprise==2.1.0
+apprise==2.2.0
     # via -r requirements.in
 certifi==2026.10.23
     # via

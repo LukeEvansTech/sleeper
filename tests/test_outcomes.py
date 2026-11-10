@@ -196,6 +196,7 @@ def test_ended_page_lists_an_ended_deal_and_not_a_live_one(web):
     assert "/deal/100/psa" in html and "/deal/400/psa" in html
     assert "/deal/200/" not in html and "/deal/300/" not in html
     assert "$72.00" in html and "25 bids" in html and "Sold" in html and "over by" in html
+    assert '<span class="rating">' not in html and "of market" not in html  # no stale live rating
     assert 'href="/ended"' in client.get("/").text  # in the main nav
     assert "/deal/100/" not in client.get("/").text  # not on the live deals list
     deal = client.get("/deal/100/psa").text

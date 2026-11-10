@@ -189,3 +189,9 @@ def test_a_raw_auction_keeps_the_raw_market_limit_when_grading_does_not_pay():
         auction(25, ship=0, kind="raw", cap=150), W, cmp, [], {"FMA": 0.77}, 39.99, 6, now=NOW
     )
     assert v.snipe == 91.98 and v.is_deal
+
+
+def test_the_likely_finish_includes_delivery():
+    cmp = value.comps(sold("psa", "2", 100), TODAY)
+    v = value.assess(auction(10, ship=30, cap=110), W, cmp, [], {}, 39.99, 6, now=NOW)
+    assert v.expected == 130 and not v.is_deal

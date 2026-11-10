@@ -21,7 +21,9 @@ RECHECK_HOURS = 20  # a listing still on sale is asked about again after this lo
 GIVE_UP_DAYS = 30  # and not at all this long after the first check
 STOP_AFTER_FAILURES = 5  # consecutive failed calls: eBay is down, leave the rest for later
 FINAL = ("sold", "unsold")
-ITEM_NOT_FOUND = {11001, 11003}  # Browse errorIds: no such item / legacy item
+# Browse errorIds for one item that is not there or not available: no such item, no such legacy
+# item, item unavailable. Asked again later, never counted as an outage.
+ITEM_NOT_FOUND = {11001, 11003, 11004}
 MISSING = {
     "final_usd": None,
     "currency": "",

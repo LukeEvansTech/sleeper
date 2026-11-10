@@ -212,8 +212,9 @@ def assess(
     ratio = None
     expected = total
     if running and same:
-        # Bids rise, mostly at the end: judge the likely finish, not the bid so far.
-        expected = max(total, same.median)
+        # Bids rise, mostly at the end: judge the likely finish, not the bid so far. Sold comps
+        # are item prices, so the finish lands with this listing's delivery on top.
+        expected = max(total, same.median + (ship or 0))
     if same:
         ratio = expected / same.median
         reasons.append(

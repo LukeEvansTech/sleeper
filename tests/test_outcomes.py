@@ -429,7 +429,8 @@ def test_a_400_with_the_missing_item_error_counts_as_missing(db):
         last_status, last_errors = 0, set()
 
         def item(self, item_id):
-            self.last_status, self.last_errors = 400, {11003}
+            self.last_status = 409 if item_id == "3" else 400
+            self.last_errors = {11004} if item_id == "3" else {11003}
             return super().item(item_id)
 
     assert outcomes.check(db, Gone400({}), NOW)["missing"] == 7

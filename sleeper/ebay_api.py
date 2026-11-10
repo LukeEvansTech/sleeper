@@ -159,6 +159,7 @@ class BrowseAPI:
         self.tries, self.pause, self._fetch = tries, pause, fetch
         self._token, self._expires = "", 0.0
         self._warned_sold = False
+        self.last_status = 0  # HTTP status of the last call (0: no answer)
 
     def __enter__(self) -> "BrowseAPI":
         return self
@@ -199,11 +200,13 @@ class BrowseAPI:
                     ctx = urllib.parse.quote(f"country=US,zip={zip_code}")
                     headers["X-EBAY-C-ENDUSERCTX"] = f"contextualLocation={ctx}"
                 status, raw = self._fetch(urllib.request.Request(url, headers=headers))
+                self.last_status = status
                 if status == 200:
                     return json.loads(raw)
             except Exception as e:  # pylint: disable=broad-exception-caught
                 log.debug("browse api attempt %d failed: %s", attempt, type(e).__name__)
                 status = 0
+                self.last_status = 0
             if status == 401:
                 self._token = ""  # expired or revoked: fetch a new one on the next try
             elif 400 <= status < 500 and status != 429:

@@ -364,3 +364,28 @@ def test_a_re_added_want_does_not_revive_an_ended_item(tmp_path, monkeypatch):
     )
     sweep.run(d, s, browser=lambda: FakeBrowser([ROW]))  # a new listing row for an ended item
     assert d.one("SELECT active FROM listings WHERE item_id = '111'")["active"] == 0
+
+
+def test_an_auction_with_buy_it_now_and_no_winning_bid_stays_unresolved(db):
+    listing(db, "1")
+    api = FakeAPI({"1": item(price="150.00", buying=("AUCTION", "FIXED_PRICE"))})
+    outcomes.check(db, api, NOW)
+    assert db.one("SELECT status FROM outcomes WHERE item_id = '1'")["status"] == "on_sale"
+    assert db.one("SELECT count(*) AS n FROM sold")["n"] == 0
+
+
+def test_items_ebay_says_are_gone_do_not_stop_the_pass(db):
+    for i in range(7):
+        listing(db, str(i))
+
+    class Gone(FakeAPI):
+        last_status = 0
+
+        def item(self, item_id):
+            got = super().item(item_id)
+            self.last_status = 200 if got else 404
+            return got
+
+    api = Gone({"6": item()})
+    stats = outcomes.check(db, api, NOW)
+    assert stats["missing"] == 6 and stats["sold"] == 1 and stats["error"] == 0

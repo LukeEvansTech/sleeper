@@ -21,6 +21,8 @@ RECHECK_HOURS = 20  # a listing still on sale is asked about again after this lo
 GIVE_UP_DAYS = 30  # and not at all this long after the first check
 STOP_AFTER_FAILURES = 5  # consecutive failed calls: eBay is down, leave the rest for later
 FINAL = ("sold", "unsold")
+MISSING = {"final_usd": None, "currency": "", "bids": None, "sold_qty": None,
+           "status": "missing", "ended_at": None}  # fmt: skip
 
 
 def _num(x: Any) -> float | None:
@@ -36,10 +38,12 @@ def parse(item: dict, now: dt.datetime | None = None) -> dict:
     avail: dict = next(iter(item.get("estimatedAvailabilities") or []), {}) or {}
     price = item.get("price") or {}
     # An auction's winning bid is currentBidPrice; its `price` may be the Buy It Now amount.
+    options = item.get("buyingOptions") or []
     final = None
-    if "AUCTION" in (item.get("buyingOptions") or []):
+    if "AUCTION" in options:
         final = _num((item.get("currentBidPrice") or {}).get("value"))
-    if final is None:
+    # Without a winning bid, `price` is only safe on an auction with no Buy It Now price to mistake.
+    if final is None and not ("AUCTION" in options and "FIXED_PRICE" in options):
         final = _num(price.get("value"))
     cur = price.get("convertedFromCurrency") or price.get("currency") or ""
     end = None
@@ -151,20 +155,28 @@ def record(db: DB, cand: dict, got: dict | None, now: dt.datetime) -> str:
 def check(db: DB, source: Any, now: dt.datetime | None = None, limit: int = MAX_CHECKS) -> dict:
     """Ask eBay about each candidate listing. Never raises: a failed call just waits for next time."""
     now = now or dt.datetime.now(dt.timezone.utc)
-    stats = {"asked": 0, "sold": 0, "unsold": 0, "on_sale": 0, "error": 0}
+    stats = {"asked": 0, "sold": 0, "unsold": 0, "on_sale": 0, "missing": 0, "error": 0}
     ask = getattr(source, "item", None)
     if ask is None:  # the headless browser cannot look an item up
         return stats
     failures = 0
     try:
         for cand in candidates(db, now, limit):
+            if hasattr(source, "last_status"):
+                source.last_status = 0
             try:
                 item = ask(cand["item_id"])
             except Exception as e:  # pylint: disable=broad-exception-caught
                 log.warning("outcome lookup failed: %s", type(e).__name__)
                 item = None
             stats["asked"] += 1
-            status = record(db, cand, parse(item, now) if item else None, now)
+            code = getattr(source, "last_status", 0)
+            if item is None and 400 <= code < 500 and code != 429:
+                # eBay answered that this item is not there: not an outage, so the pass goes on.
+                item_row = {**MISSING}
+            else:
+                item_row = parse(item, now) if item else None
+            status = record(db, cand, item_row, now)
             stats[status] += 1
             failures = failures + 1 if status == "error" else 0
             if failures >= STOP_AFTER_FAILURES:

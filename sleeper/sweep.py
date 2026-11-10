@@ -214,7 +214,9 @@ def store(db: DB, run_id: int, found: list[dict], sold: list[dict], searched: li
                        last_seen = excluded.last_seen, last_run = excluded.last_run,
                        low_usd = min(listings.low_usd, excluded.usd),
                        active = NOT EXISTS (SELECT 1 FROM outcomes o WHERE o.item_id = listings.item_id
-                                            AND o.status IN ('sold', 'unsold'))""",
+                                            AND o.status IN ('sold', 'unsold'))
+                                AND NOT (excluded.ends IS NOT NULL
+                                         AND excluded.ends < substr(:now, 1, 16))""",
                 {**f, "now": now, "run": run_id},
             )
         for want_id, kind in searched:

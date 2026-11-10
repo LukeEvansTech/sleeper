@@ -417,6 +417,8 @@ def test_an_ended_auction_returned_before_its_outcome_keeps_its_rated_flag(db):
     }  # fmt: skip
     sweep.store(db, 99, [found], [], [])
     assert db.one("SELECT deal FROM listings WHERE item_id = '9'")["deal"] == 0
+    # and it is no longer live, so it is never rated or alerted again
+    assert db.one("SELECT active FROM listings WHERE item_id = '9'")["active"] == 0
     sweep.store(db, 100, [{**found, "item_id": "8", "ends": "2099-01-01T10:00"}], [], [])
     assert db.one("SELECT deal FROM listings WHERE item_id = '8'")["deal"] == 1
 
@@ -445,3 +447,12 @@ def test_an_auction_with_bids_but_no_sale_yet_is_asked_again(db):
     listing(db, "1")
     outcomes.check(db, FakeAPI({"1": item(status="IN_STOCK", sold=0, bids=4)}), NOW)
     assert db.one("SELECT status FROM outcomes WHERE item_id = '1'")["status"] == "on_sale"
+
+
+def test_a_closed_auction_still_in_stock_with_no_sales_count_waits(db):
+    listing(db, "1")
+    got = item(status="IN_STOCK", bids=4)
+    del got["estimatedAvailabilities"][0]["estimatedSoldQuantity"]
+    outcomes.check(db, FakeAPI({"1": got}), NOW)
+    assert db.one("SELECT status FROM outcomes WHERE item_id = '1'")["status"] == "on_sale"
+    assert db.one("SELECT count(*) AS n FROM sold")["n"] == 0

@@ -69,8 +69,8 @@ def parse(item: dict, now: dt.datetime | None = None) -> dict:
     bids = int(n_bids) if n_bids is not None else None
     n_sold = _num(avail.get("estimatedSoldQuantity"))
     sold_qty = int(n_sold) if n_sold is not None else None
-    if sold_qty is None and auction and bids is not None:
-        sold_qty = 1 if bids > 0 else 0  # an auction's sold count is missing: bids decide
+    if sold_qty is None and auction and bids is not None and (out_of_stock or bids == 0):
+        sold_qty = 1 if bids > 0 else 0  # sold count missing on a closed auction: bids decide
     if item.get("reservePriceMet") is False:  # bids that never met the reserve are not a sale
         sold_qty = 0
     settling = (bids or 0) > 0 and not sold_qty and item.get("reservePriceMet") is not False

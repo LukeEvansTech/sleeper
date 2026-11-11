@@ -548,3 +548,12 @@ def test_a_sighting_after_the_close_does_not_decide_a_loss(web):
     outcomes.check(d, FakeAPI({"1": item(price="34.00", bids=3)}), NOW)
     html = client.get("/ended").text
     assert "Snipe in range" in html  # $34.98 beat the $34 final
+
+
+def test_a_late_sighting_still_needs_the_opening_price_covered(web):
+    d, client = web
+    listing(d, "1")
+    d.run("UPDATE listings SET cap = 18, last_seen = '2026-11-10 08:00'")  # max $12.98 < $33
+    outcomes.check(d, FakeAPI({"1": item(status="IN_STOCK", sold=0, bids=0)}), NOW)
+    html = client.get("/ended").text
+    assert "Snipe would have lost" in html and "would probably have won" not in html

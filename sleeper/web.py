@@ -242,6 +242,15 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             out.append(r)
         return out
 
+    def seen_before(seen: str | None, end: str | None) -> bool:
+        """Was a sighting (sweep's naive local time) before the close (eBay's time, with offset)?"""
+        try:
+            a = dt.datetime.fromisoformat(str(seen)).astimezone()
+            b = dt.datetime.fromisoformat(str(end).replace("Z", "+00:00")).astimezone()
+        except ValueError:
+            return False
+        return a < b
+
     def hindsight(r: dict, w: dict, sold_rows: list[dict], pop: list[dict]) -> dict:
         """Would sleeper's max bid have won this ended auction? The max bid is recalculated for a
         minute before the end from sales on earlier days only (sold rows carry a date, not a time),
@@ -277,7 +286,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         # The bid sleeper last saw already sets a floor: assess() gives no snipe when the limit is
         # under the next bid eBay would take then, so that max bid could never have been placed.
         # Only a sighting from before the close counts: a later search can carry the final price.
-        before = str(r.get("last_seen") or "")[:16].replace(" ", "T") < at.isoformat()[:16]
+        before = seen_before(r.get("last_seen"), end)
         placeable = v.snipe is not None or not before
         if bid is None:
             out["result"] = "no bid"  # no ceiling and no sales to set a limit
@@ -290,7 +299,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         elif o["status"] == "unsold":
             # Nobody bid: the opening price would probably have taken it, unless a hidden reserve.
             start = float(r["usd"])
-            out["result"], out["pay"] = "open", start
+            out["result"], out["pay"] = ("open", start) if bid >= start else ("lost", None)
         elif final is None or bids == 0:
             out["result"] = "unknown"  # sold by offer or Buy It Now: no closing price
         elif bid > final:

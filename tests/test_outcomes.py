@@ -539,3 +539,12 @@ def test_an_unknown_bid_count_is_not_called_unbid(web):
     outcomes.check(d, FakeAPI({"1": got}), NOW)
     html = client.get("/ended").text
     assert "would probably have won" not in html and "Not known" in html
+
+
+def test_a_sighting_after_the_close_does_not_decide_a_loss(web):
+    d, client = web
+    listing(d, "1")  # ends 2026-11-09 18:00 per the API
+    d.run("UPDATE listings SET usd = 34, bids = '3 bids', last_seen = '2026-11-10 08:00'")
+    outcomes.check(d, FakeAPI({"1": item(price="34.00", bids=3)}), NOW)
+    html = client.get("/ended").text
+    assert "Snipe in range" in html  # $34.98 beat the $34 final

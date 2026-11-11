@@ -276,7 +276,9 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         final, bids = o.get("final_usd"), o.get("bids")
         # The bid sleeper last saw already sets a floor: assess() gives no snipe when the limit is
         # under the next bid eBay would take then, so that max bid could never have been placed.
-        placeable = v.snipe is not None
+        # Only a sighting from before the close counts: a later search can carry the final price.
+        before = str(r.get("last_seen") or "")[:16].replace(" ", "T") < at.isoformat()[:16]
+        placeable = v.snipe is not None or not before
         if bid is None:
             out["result"] = "no bid"  # no ceiling and no sales to set a limit
         elif bids is None:

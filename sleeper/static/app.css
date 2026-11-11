@@ -1403,12 +1403,15 @@ kbd {
   line-height: 1.4;
   color: var(--muted);
 }
+
 .hindsight b {
   font-weight: 700;
 }
+
 .hindsight-won b {
   color: var(--great);
 }
+
 .hindsight-lost b {
   color: var(--high);
 }

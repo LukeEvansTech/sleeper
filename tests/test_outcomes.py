@@ -475,8 +475,8 @@ def test_a_max_bid_over_the_final_price_is_in_range_not_a_sure_win(web):
     listing(d, "1")
     outcomes.check(d, FakeAPI({"1": item(price="30.00")}), NOW)
     html = client.get("/ended").text
-    # the winner's own maximum is hidden; at best eBay charges one $1 increment over $30
-    assert "Snipe in range" in html and "at least $31.00" in html
+    # the winner's own maximum and the bid timing are hidden
+    assert "Snipe in range" in html and "more than $30.00" in html
     assert "would probably have won" not in html
     assert "0 lost, 1 in range" in html
     assert "Snipe in range" in client.get("/deal/1/psa").text
@@ -520,13 +520,3 @@ def test_a_sale_without_bids_has_no_snipe_verdict(web):
     html = client.get("/ended").text
     assert "Not known whether a snipe would have won" in html
     assert "would probably have won" not in html and "Snipe in range" not in html
-
-
-def test_a_max_bid_under_the_next_acceptable_bid_is_a_loss(web):
-    d, client = web
-    listing(d, "1")
-    d.run("UPDATE listings SET cap = 35.49")  # less $5 delivery: max bid $30.49
-    outcomes.check(d, FakeAPI({"1": item(price="30.00")}), NOW)
-    html = client.get("/ended").text
-    # over the $30 final, but eBay would not take a bid under $31 at that point
-    assert "Snipe would have lost" in html and "$30.49" in html

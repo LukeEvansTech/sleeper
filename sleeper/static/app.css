@@ -1408,7 +1408,8 @@ kbd {
   font-weight: 700;
 }
 
-.hindsight-won b {
+.hindsight-won b,
+.hindsight-range b {
   color: var(--great);
 }
 

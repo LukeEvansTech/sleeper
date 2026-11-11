@@ -9,7 +9,7 @@
   <div><dt>Final</dt><dd><b>{{ o.final_usd | money }}</b>{% if o.bids is not none and r.auction %}, {{ o.bids }} bid{{ 's' if o.bids != 1 }}{% endif %}</dd></div>
   {% if r.cap %}
   {% set gap = landed(r, o.final_usd) - r.cap %}
-  <div><dt>Ceiling {{ r.cap | money }}</dt><dd class="{{ 'warn' if gap > 0 else 'ok' }}">{{ 'over by' if gap > 0 else 'under by' }} {{ (gap | abs) | money }} landed</dd></div>
+  <div><dt>Vs your ceiling</dt><dd class="{{ 'warn' if gap > 0 else 'ok' }}">{{ (gap | abs) | money }} {{ 'over' if gap > 0 else 'under' }} your {{ r.cap | money }} ceiling, with delivery</dd></div>
   {% endif %}
   {% elif o.status == 'sold' %}
   <div><dt>Final</dt><dd>unknown (sold without a bid, so no closing price)</dd></div>

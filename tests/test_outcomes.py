@@ -195,7 +195,7 @@ def test_ended_page_lists_an_ended_deal_and_not_a_live_one(web):
     html = client.get("/ended").text
     assert "/deal/100/psa" in html and "/deal/400/psa" in html
     assert "/deal/200/" not in html and "/deal/300/" not in html
-    assert "$72.00" in html and "25 bids" in html and "Sold" in html and "over by" in html
+    assert "$72.00" in html and "25 bids" in html and "Sold" in html and "over your" in html
     assert '<span class="rating">' not in html and "of market" not in html  # no stale live rating
     assert 'href="/ended"' in client.get("/").text  # in the main nav
     assert "/deal/100/" not in client.get("/").text  # not on the live deals list
@@ -457,3 +457,52 @@ def test_a_closed_auction_still_in_stock_with_no_sales_count_waits(db):
     outcomes.check(db, FakeAPI({"1": got}), NOW)
     assert db.one("SELECT status FROM outcomes WHERE item_id = '1'")["status"] == "on_sale"
     assert db.one("SELECT count(*) AS n FROM sold")["n"] == 0
+
+
+def test_ended_auction_says_a_snipe_would_have_lost(web):
+    d, client = web
+    listing(d, "1")  # ceiling $40 with $5 delivery: max bid $34.98
+    outcomes.check(d, FakeAPI({"1": item()}), NOW)  # went for $72
+    html = client.get("/ended").text
+    assert "Snipe would have lost" in html and "$34.98" in html and "it went for $72.00" in html
+    assert "counts in the sold prices" in html  # the sale feeds the comps
+    assert "would have won 0 and lost 1" in html
+    assert "$37.00 over your $40.00 ceiling" in html  # $72 + $5 delivery
+
+
+def test_ended_auction_says_a_snipe_would_have_won_and_what_it_cost(web):
+    d, client = web
+    listing(d, "1")
+    outcomes.check(d, FakeAPI({"1": item(price="30.00")}), NOW)
+    html = client.get("/ended").text
+    # eBay charges one $1 increment over the $30 runner-up, under the $34.98 max bid
+    assert "Snipe would have won" in html and "paying about $31.00" in html
+    assert "would have won 1 and lost 0" in html
+    assert "How it ended" in client.get("/deal/1/psa").text
+    assert "Snipe would have won" in client.get("/deal/1/psa").text
+
+
+def test_hindsight_max_bid_uses_only_sales_before_the_end(web):
+    d, client = web
+    listing(d, "1")
+    for n, (usd, day) in enumerate([(20, "2026-11-01"), (20, "2026-11-02"), (500, "2026-11-10")]):
+        d.run(
+            "INSERT INTO sold (item_id, want_id, kind, star, usd, date, title) "
+            "VALUES (?, 1, 'psa', '2', ?, ?, 'PSA 10 Vegito')",
+            f"s{n}",
+            usd,
+            day,
+        )
+    outcomes.check(d, FakeAPI({"1": item(price="30.00")}), NOW)  # ended 2026-11-09
+    html = client.get("/ended").text
+    # 92% of the $20 median less $5 delivery = $13.40, so $13.39; the later $500 and its own
+    # $30 sale do not count
+    assert "Snipe would have lost" in html and "$13.39" in html
+
+
+def test_an_unbid_auction_would_have_been_won_at_the_opening_price(web):
+    d, client = web
+    listing(d, "1")
+    outcomes.check(d, FakeAPI({"1": item(status="IN_STOCK", sold=0, bids=0)}), NOW)
+    html = client.get("/ended").text
+    assert "Snipe would have won" in html and "paying about $33.00" in html

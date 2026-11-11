@@ -1395,3 +1395,20 @@ kbd {
   padding-inline: 0;
   font-size: 0.9rem;
 }
+
+/* Ended auctions: would sleeper's max bid have won it? */
+.hindsight {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.hindsight b {
+  font-weight: 700;
+}
+.hindsight-won b {
+  color: var(--great);
+}
+.hindsight-lost b {
+  color: var(--high);
+}

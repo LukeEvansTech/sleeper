@@ -10,7 +10,7 @@
     <a class="button" href="/wants/{{ w._id }}">Edit want</a>
     {% if r.auction and r.active and not r.outcome %}<a class="button" href="{{ gixen_link(r.item_id, r.gixen_bid) }}" target="_blank" rel="noopener">Add to Gixen{% if r.gixen_bid %} · max bid {{ r.gixen_bid | bid }}{% endif %}</a>{% endif %}
   </div>
-  {% if r.outcome %}{% set show_outcome = true %}<h2>How it ended</h2>{% include "_outcome.html" %}{% endif %}
+  {% if r.outcome %}{% set show_outcome = true %}<h2>How it ended</h2>{% include "_outcome.html" %}{% if r.hindsight %}{% include "_hindsight.html" %}{% endif %}{% endif %}
   {% if not r.active and not r.outcome %}<p class="warn">This listing was not in the latest search: it may have sold or ended.</p>{% endif %}
 </section>
 

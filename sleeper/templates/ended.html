@@ -4,6 +4,7 @@
 <section class="head-row">
   <h1>{{ total }} ended deal{{ 's' if total != 1 }}</h1>
   <p class="muted small">Deals and alerts whose listing has since ended, newest first: {{ sold }} sold, {{ total - sold }} not sold. Final prices come from eBay.</p>
+  {% if tally.won or tally.lost %}<p class="small">Sniping each auction at sleeper's max bid would have won {{ tally.won }} and lost {{ tally.lost }}. The max bid is worked out from sales before each auction ended, never from its own result.</p>{% endif %}
 </section>
 <div class="grid">
 {% set show_outcome = true %}

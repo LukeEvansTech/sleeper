@@ -18,7 +18,7 @@
     {% if r.obo %}<span>offers</span>{% endif %}
     {% if r.artd.verdict == 'match' %}<span class="ok">art matches</span>{% elif r.artd.verdict == 'differs' %}<b class="warn">art differs</b>{% elif r.artd.verdict == 'unclear' %}<span>art unclear</span>{% endif %}
   </div>
-  {% if ended %}{% include "_outcome.html" %}{% endif %}
+  {% if ended %}{% include "_outcome.html" %}{% if r.hindsight %}{% include "_hindsight.html" %}{% endif %}{% endif %}
   {% if r.auction and r.active and not r.outcome %}
   <a class="snipe-btn button" href="{{ gixen_link(r.item_id, r.gixen_bid) }}" target="_blank" rel="noopener">Add to Gixen{% if r.gixen_bid %} · max bid {{ r.gixen_bid | bid }}{% endif %}</a>
   {% endif %}

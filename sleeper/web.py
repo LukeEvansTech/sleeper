@@ -217,6 +217,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
     def scored(rows: list[dict]) -> list[dict]:
         wants = {w["_id"]: w for w in db.wants()}
         cmp, pop = sweep.context(db)
+        sold_rows: list[dict] | None = None  # loaded only when a row has ended
         outs = {
             o["item_id"]: dict(o)
             for o in db.all("SELECT * FROM outcomes WHERE status IN ('sold', 'unsold')")
@@ -230,11 +231,60 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             r["outcome"] = outs.get(r["item_id"])
             r["want"] = w
             r["v"] = sweep.verdict_for(db, s, r, w, cmp, pop)
+            if r["outcome"] and r.get("auction"):
+                if sold_rows is None:
+                    sold_rows = [dict(x) for x in db.all("SELECT * FROM sold")]
+                r["hindsight"] = hindsight(r, w, sold_rows, pop)
             r["artd"] = json.loads(r["art"]) if r.get("art") else {}
             r["bid_to"] = snipe_bid(r)
             # Gixen bids in the listing's own currency, so a dollar figure goes only on USD listings.
             r["gixen_bid"] = r["bid_to"] if r.get("cur") == "USD" else None
             out.append(r)
+        return out
+
+    def hindsight(r: dict, w: dict, sold_rows: list[dict], pop: list[dict]) -> dict:
+        """Would sleeper's max bid have won this ended auction? The max bid is worked out as it stood
+        a minute before the end, from sales up to that day and not this one, so the answer does not
+        use the result it is judging."""
+        o = r["outcome"]
+        end = o.get("ended_at") or r.get("ends")
+        out: dict = {"comp": any(x["item_id"] == r["item_id"] for x in sold_rows)}
+        try:
+            at = dt.datetime.fromisoformat(str(end)[:16])
+        except ValueError:
+            return out | {"result": "unknown"}
+        prior = [
+            x
+            for x in sold_rows
+            if x["item_id"] != r["item_id"] and x["date"][:10] <= at.date().isoformat()
+        ]
+        v = value.assess(
+            r,
+            w,
+            value.comps(prior, at.date()),
+            value.pop_for(pop, w),
+            db.gem_rates(),
+            s.grading_fee,
+            s.grading_ship,
+            now=at - dt.timedelta(minutes=1),
+        )
+        bid = value.snipe_bid(v.limit) if v.limit is not None else None
+        out["bid"] = bid
+        final, bids = o.get("final_usd"), o.get("bids") or 0
+        if bid is None:
+            out["result"] = "no bid"  # no ceiling and no sales to set a limit
+        elif o["status"] == "unsold" and bids:
+            out["result"] = "reserve"  # bids came in but the reserve was not met
+        elif o["status"] == "unsold" or not bids:
+            start = float(r["usd"])  # no bids: the opening price is the price
+            out["result"], out["pay"] = ("won", start) if bid >= start else ("lost", None)
+        elif final is None:
+            out["result"] = "unknown"
+        elif bid > final:
+            # eBay charges one increment over the runner-up, capped at our own bid
+            out["result"], out["pay"] = "won", min(bid, final + value.increment(final))
+        else:
+            out["result"] = "lost"
         return out
 
     @app.get("/health")
@@ -337,7 +387,11 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             ]
         )
         sold = sum(1 for r in rows if r["outcome"]["status"] == "sold")
-        return page(request, "ended.html", rows=rows[:400], total=len(rows), sold=sold)
+        tally = {
+            k: sum(1 for r in rows if (r.get("hindsight") or {}).get("result") == k)
+            for k in ("won", "lost")
+        }
+        return page(request, "ended.html", rows=rows[:400], total=len(rows), sold=sold, tally=tally)
 
     @app.get("/deal/{item_id}/{kind}", response_class=HTMLResponse)
     def deal(request: Request, item_id: str, kind: str):

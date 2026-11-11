@@ -273,16 +273,26 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         limit = v.limit
         bid = value.snipe_bid(limit) if limit is not None else None
         out["bid"] = bid
-        final, bids = o.get("final_usd"), o.get("bids") or 0
+        final, bids = o.get("final_usd"), o.get("bids")
+        # The bid sleeper last saw already sets a floor: a max bid under the next bid eBay would
+        # take then could never have been placed.
+        seen = float(r["usd"])
+        placeable = limit is not None and (
+            value.snipe_bid(limit, seen, value._bid_count(r)) is not None
+        )
         if bid is None:
             out["result"] = "no bid"  # no ceiling and no sales to set a limit
+        elif bids is None:
+            out["result"] = "unknown"  # eBay gave no bid count
+        elif not placeable:
+            out["result"] = "lost"
         elif o["status"] == "unsold" and bids:
             out["result"] = "reserve"  # bids came in but the reserve was not met
         elif o["status"] == "unsold":
             # Nobody bid: the opening price would probably have taken it, unless a hidden reserve.
             start = float(r["usd"])
-            out["result"], out["pay"] = ("open", start) if bid >= start else ("lost", None)
-        elif final is None or not bids:
+            out["result"], out["pay"] = "open", start
+        elif final is None or bids == 0:
             out["result"] = "unknown"  # sold by offer or Buy It Now: no closing price
         elif bid > final:
             # It beat every bid but the winner's, whose maximum eBay never shows, and bid timing is

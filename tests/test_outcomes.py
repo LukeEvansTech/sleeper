@@ -520,3 +520,22 @@ def test_a_sale_without_bids_has_no_snipe_verdict(web):
     html = client.get("/ended").text
     assert "Not known whether a snipe would have won" in html
     assert "would probably have won" not in html and "Snipe in range" not in html
+
+
+def test_a_max_bid_already_passed_when_last_seen_is_a_loss(web):
+    d, client = web
+    listing(d, "1")
+    d.run("UPDATE listings SET usd = 34, bids = '3 bids'")  # next bid then: $35 > $34.98 max
+    outcomes.check(d, FakeAPI({"1": item(price="34.00", bids=3)}), NOW)
+    html = client.get("/ended").text
+    assert "Snipe would have lost" in html and "Snipe in range" not in html
+
+
+def test_an_unknown_bid_count_is_not_called_unbid(web):
+    d, client = web
+    listing(d, "1")
+    got = item(status="IN_STOCK", sold=0)
+    del got["bidCount"]
+    outcomes.check(d, FakeAPI({"1": got}), NOW)
+    html = client.get("/ended").text
+    assert "would probably have won" not in html and "Not known" in html

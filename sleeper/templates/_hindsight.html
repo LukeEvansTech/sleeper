@@ -1,8 +1,8 @@
 {# Would sleeper's max bid have won an ended auction? h = r.hindsight (web.hindsight). #}
 {% set h = r.hindsight %}
 <p class="hindsight hindsight-{{ h.result | replace(' ', '-') }}">
-{%- if h.result == 'won' %}<b>Snipe would have won</b>: nobody bid, and max bid {{ h.bid | bid }} covers the {{ h.pay | money }} opening price.
-{%- elif h.result == 'range' %}<b>Snipe in range</b>: max bid {{ h.bid | bid }} beat the {{ r.outcome.final_usd | money }} final price. It wins unless the winner's hidden max was higher, paying about {{ h.pay | money }}{% if r.ship %} plus {{ r.ship | money }} delivery{% endif %}.
+{%- if h.result == 'open' %}<b>Snipe would probably have won</b>: nobody bid, and max bid {{ h.bid | bid }} covers the {{ h.pay | money }} opening price (unless it had a hidden reserve).
+{%- elif h.result == 'range' %}<b>Snipe in range</b>: max bid {{ h.bid | bid }} beat the {{ r.outcome.final_usd | money }} final price. It wins unless the winner's hidden max was higher, and would have cost at least {{ h.pay | money }}{% if r.ship %} plus {{ r.ship | money }} delivery{% endif %}.
 {%- elif h.result == 'lost' %}<b>Snipe would have lost</b>: max bid {{ h.bid | bid }}{% if r.outcome.status == 'sold' %}, it went for {{ r.outcome.final_usd | money }}{% else %}, under the {{ r.usd | money }} opening price{% endif %}.
 {%- elif h.result == 'reserve' %}Nobody won: bids came in but the reserve was not met.
 {%- elif h.result == 'no bid' %}No snipe: there was no ceiling or sales history to set a max bid.

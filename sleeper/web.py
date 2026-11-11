@@ -243,9 +243,9 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         return out
 
     def hindsight(r: dict, w: dict, sold_rows: list[dict], pop: list[dict]) -> dict:
-        """Would sleeper's max bid have won this ended auction? The max bid is worked out as it stood
-        a minute before the end, from sales on earlier days (sold rows carry a date, not a time), so
-        the answer never uses the result it is judging. The winner's own maximum is hidden, so a max
+        """Would sleeper's max bid have won this ended auction? The max bid is recalculated for a
+        minute before the end from sales on earlier days only (sold rows carry a date, not a time),
+        so the result it judges never feeds it; ceiling, pop and grading figures are today's. The winner's own maximum is hidden, so a max
         bid over the final price is "in range" (it beat every other bidder), never a sure win."""
         o = r["outcome"]
         end = o.get("ended_at") or r.get("ends")
@@ -277,15 +277,17 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         elif o["status"] == "unsold" and bids:
             out["result"] = "reserve"  # bids came in but the reserve was not met
         elif o["status"] == "unsold":
-            start = float(r["usd"])  # nobody bid: the opening price would have taken it
-            out["result"], out["pay"] = ("won", start) if bid >= start else ("lost", None)
+            # Nobody bid: the opening price would probably have taken it, unless a hidden reserve.
+            start = float(r["usd"])
+            out["result"], out["pay"] = ("open", start) if bid >= start else ("lost", None)
         elif final is None or not bids:
             out["result"] = "unknown"  # sold by offer or Buy It Now: no closing price
-        elif bid > final:
-            # It beat every bid but the winner's, whose maximum eBay never shows.
-            out["result"], out["pay"] = "range", min(bid, final + value.increment(final))
+        elif value.snipe_bid(v.limit, final, bids) is not None:
+            # It beat every bid but the winner's, whose maximum eBay never shows, so a win would
+            # cost at least one increment over the final price.
+            out["result"], out["pay"] = "range", final + value.increment(final)
         else:
-            out["result"] = "lost"
+            out["result"] = "lost"  # under the final price, or under the next bid eBay would take
         return out
 
     @app.get("/health")
@@ -390,7 +392,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         sold = sum(1 for r in rows if r["outcome"]["status"] == "sold")
         tally = {
             k: sum(1 for r in rows if (r.get("hindsight") or {}).get("result") == k)
-            for k in ("won", "range", "lost")
+            for k in ("open", "range", "lost")
         }
         return page(request, "ended.html", rows=rows[:400], total=len(rows), sold=sold, tally=tally)
 

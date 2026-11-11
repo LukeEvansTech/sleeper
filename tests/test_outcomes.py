@@ -529,6 +529,7 @@ def test_a_max_bid_already_passed_when_last_seen_is_a_loss(web):
     outcomes.check(d, FakeAPI({"1": item(price="34.00", bids=3)}), NOW)
     html = client.get("/ended").text
     assert "Snipe would have lost" in html and "Snipe in range" not in html
+    assert "under the $35.00 minimum bid" in html
 
 
 def test_an_unknown_bid_count_is_not_called_unbid(web):

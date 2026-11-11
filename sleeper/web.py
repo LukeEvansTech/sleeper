@@ -292,8 +292,12 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             out["result"] = "no bid"  # no ceiling and no sales to set a limit
         elif bids is None:
             out["result"] = "unknown"  # eBay gave no bid count
-        elif not placeable:
-            out["result"] = "lost"
+        elif not placeable and not (final is not None and final < float(r["usd"])):
+            # Under the next bid eBay would take when last seen (a cancelled bid can bring the
+            # final under that price; then the final price decides below).
+            seen = float(r["usd"])
+            unbid = not r.get("bids") or str(r["bids"]).startswith("0")
+            out["result"], out["need"] = "lost", seen + (0 if unbid else value.increment(seen))
         elif o["status"] == "unsold" and bids:
             out["result"] = "reserve"  # bids came in but the reserve was not met
         elif o["status"] == "unsold":

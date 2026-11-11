@@ -269,7 +269,8 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             s.grading_ship,
             now=at - dt.timedelta(minutes=1),
         )
-        bid = value.snipe_bid(v.limit) if v.limit is not None else None
+        limit = v.limit
+        bid = value.snipe_bid(limit) if limit is not None else None
         out["bid"] = bid
         final, bids = o.get("final_usd"), o.get("bids") or 0
         if bid is None:
@@ -282,7 +283,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             out["result"], out["pay"] = ("open", start) if bid >= start else ("lost", None)
         elif final is None or not bids:
             out["result"] = "unknown"  # sold by offer or Buy It Now: no closing price
-        elif value.snipe_bid(v.limit, final, bids) is not None:
+        elif limit is not None and value.snipe_bid(limit, final, bids) is not None:
             # It beat every bid but the winner's, whose maximum eBay never shows, so a win would
             # cost at least one increment over the final price.
             out["result"], out["pay"] = "range", final + value.increment(final)

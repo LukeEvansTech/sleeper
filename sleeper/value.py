@@ -99,6 +99,7 @@ class Verdict:
     high: float | None = None
     # a running auction that usually sells within the ceiling and can still be bid on
     snipeable: bool = False
+    limit: float | None = None  # an auction's item-price limit before snipe_bid's odd cents
 
     @property
     def market(self) -> float | None:
@@ -299,7 +300,7 @@ def assess(
         else:
             advice = "Judge on the photos and your ceiling; there is little sales history."
 
-    max_bid = snipe = None
+    max_bid = snipe = limit = None
     limit_why = ""
     if listing.get("auction"):
         # Keep the bid inside what still counts as a deal (Verdict.is_deal): "good" or better against
@@ -378,4 +379,5 @@ def assess(
         low=same.low if same else None,
         high=same.high if same else None,
         snipeable=snipeable,
+        limit=limit,
     )

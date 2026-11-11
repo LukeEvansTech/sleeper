@@ -40,7 +40,10 @@ sweep (cron) ─▶ eBay search per want (Browse API or headless Chromium) ─�
 - **Outcomes**: each sweep asks the Browse API how listings that left the search (or auctions past
   their end) finished, up to 200 a sweep, again after 20 hours while still on sale and not after 30
   days. A sold auction's final price joins the sold comps (fixed-price sales do not: their price is unknown); the Ended page lists deals and alerts with
-  their final price.
+  their final price and, for an auction, whether sniping at sleeper's max bid would have won it.
+  That max bid is recalculated for just before the end from sales on earlier days, never the
+  auction's own result (the ceiling is the one sleeper stored for the listing; grading figures are today's). Beating the final price counts as "in range",
+  not a win, because eBay hides the winner's own maximum, and the page totals the results.
 - **Verdict**: `great` / `good` / `fair` / `high` against the 90-day sold median for the same
   card, kind (PSA 10 or raw) and star bucket, plus the cost of one PSA 10 by grading a raw copy:
   `(raw price + grading fee + shipping) / gem rate`. The gem rate is the card's own PSA pop when 10

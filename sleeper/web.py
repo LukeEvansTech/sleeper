@@ -217,6 +217,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
     def scored(rows: list[dict]) -> list[dict]:
         wants = {w["_id"]: w for w in db.wants()}
         cmp, pop = sweep.context(db)
+        sold_rows: list[dict] | None = None  # loaded only when a row has ended
         outs = {
             o["item_id"]: dict(o)
             for o in db.all("SELECT * FROM outcomes WHERE status IN ('sold', 'unsold')")
@@ -230,11 +231,87 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             r["outcome"] = outs.get(r["item_id"])
             r["want"] = w
             r["v"] = sweep.verdict_for(db, s, r, w, cmp, pop)
+            if r["outcome"] and r.get("auction"):
+                if sold_rows is None:
+                    sold_rows = [dict(x) for x in db.all("SELECT * FROM sold")]
+                r["hindsight"] = hindsight(r, w, sold_rows, pop)
             r["artd"] = json.loads(r["art"]) if r.get("art") else {}
             r["bid_to"] = snipe_bid(r)
             # Gixen bids in the listing's own currency, so a dollar figure goes only on USD listings.
             r["gixen_bid"] = r["bid_to"] if r.get("cur") == "USD" else None
             out.append(r)
+        return out
+
+    def seen_before(seen: str | None, end: str | None) -> bool:
+        """Was a sighting (sweep's naive local time) before the close (eBay's time, with offset)?"""
+        try:
+            a = dt.datetime.fromisoformat(str(seen)).astimezone()
+            b = dt.datetime.fromisoformat(str(end).replace("Z", "+00:00")).astimezone()
+        except ValueError:
+            return False
+        return a < b
+
+    def hindsight(r: dict, w: dict, sold_rows: list[dict], pop: list[dict]) -> dict:
+        """Would sleeper's max bid have won this ended auction? The max bid is recalculated for a
+        minute before the end from sales on earlier days only (sold rows carry a date, not a time),
+        so the result it judges never feeds it. The ceiling is the one the listing was stored with;
+        pop and grading figures are today's. The winner's own maximum is hidden, so a max
+        bid over the final price is "in range" (it beat every other bidder), never a sure win."""
+        o = r["outcome"]
+        end = o.get("ended_at") or r.get("ends")
+        out: dict = {"comp": any(x["item_id"] == r["item_id"] for x in sold_rows)}
+        try:
+            at = dt.datetime.fromisoformat(str(end)[:16])
+        except ValueError:
+            return out | {"result": "unknown"}
+        prior = [
+            x
+            for x in sold_rows
+            if x["item_id"] != r["item_id"] and x["date"][:10] < at.date().isoformat()
+        ]
+        v = value.assess(
+            r,
+            w,
+            value.comps(prior, at.date()),
+            value.pop_for(pop, w),
+            db.gem_rates(),
+            s.grading_fee,
+            s.grading_ship,
+            now=at - dt.timedelta(minutes=1),
+        )
+        limit = v.limit
+        bid = value.snipe_bid(limit) if limit is not None else None
+        out["bid"] = bid
+        final, bids = o.get("final_usd"), o.get("bids")
+        # The bid sleeper last saw already sets a floor: assess() gives no snipe when the limit is
+        # under the next bid eBay would take then, so that max bid could never have been placed.
+        # Only a sighting from before the close counts: a later search can carry the final price.
+        before = seen_before(r.get("last_seen"), end)
+        placeable = v.snipe is not None or not before
+        if bid is None:
+            out["result"] = "no bid"  # no ceiling and no sales to set a limit
+        elif bids is None:
+            out["result"] = "unknown"  # eBay gave no bid count
+        elif not placeable and not (final is not None and final < float(r["usd"])):
+            # Under the next bid eBay would take when last seen (a cancelled bid can bring the
+            # final under that price; then the final price decides below).
+            seen = float(r["usd"])
+            unbid = not r.get("bids") or str(r["bids"]).startswith("0")
+            out["result"], out["need"] = "lost", seen + (0 if unbid else value.increment(seen))
+        elif o["status"] == "unsold" and bids:
+            out["result"] = "reserve"  # bids came in but the reserve was not met
+        elif o["status"] == "unsold":
+            # Nobody bid: the opening price would probably have taken it, unless a hidden reserve.
+            start = float(r["usd"])
+            out["result"], out["pay"] = ("open", start) if bid >= start else ("lost", None)
+        elif final is None or bids == 0:
+            out["result"] = "unknown"  # sold by offer or Buy It Now: no closing price
+        elif bid > final:
+            # It beat every bid but the winner's, whose maximum eBay never shows, and bid timing is
+            # unknown, so this is a chance at it costing more than the final price, not a sure win.
+            out["result"], out["pay"] = "range", final
+        else:
+            out["result"] = "lost"
         return out
 
     @app.get("/health")
@@ -337,7 +414,11 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             ]
         )
         sold = sum(1 for r in rows if r["outcome"]["status"] == "sold")
-        return page(request, "ended.html", rows=rows[:400], total=len(rows), sold=sold)
+        tally = {
+            k: sum(1 for r in rows if (r.get("hindsight") or {}).get("result") == k)
+            for k in ("open", "range", "lost")
+        }
+        return page(request, "ended.html", rows=rows[:400], total=len(rows), sold=sold, tally=tally)
 
     @app.get("/deal/{item_id}/{kind}", response_class=HTMLResponse)
     def deal(request: Request, item_id: str, kind: str):

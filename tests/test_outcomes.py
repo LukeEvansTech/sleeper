@@ -195,7 +195,7 @@ def test_ended_page_lists_an_ended_deal_and_not_a_live_one(web):
     html = client.get("/ended").text
     assert "/deal/100/psa" in html and "/deal/400/psa" in html
     assert "/deal/200/" not in html and "/deal/300/" not in html
-    assert "$72.00" in html and "25 bids" in html and "Sold" in html and "over by" in html
+    assert "$72.00" in html and "25 bids" in html and "Sold" in html and "over your" in html
     assert '<span class="rating">' not in html and "of market" not in html  # no stale live rating
     assert 'href="/ended"' in client.get("/").text  # in the main nav
     assert "/deal/100/" not in client.get("/").text  # not on the live deals list
@@ -457,3 +457,104 @@ def test_a_closed_auction_still_in_stock_with_no_sales_count_waits(db):
     outcomes.check(db, FakeAPI({"1": got}), NOW)
     assert db.one("SELECT status FROM outcomes WHERE item_id = '1'")["status"] == "on_sale"
     assert db.one("SELECT count(*) AS n FROM sold")["n"] == 0
+
+
+def test_ended_auction_says_a_snipe_would_have_lost(web):
+    d, client = web
+    listing(d, "1")  # ceiling $40 with $5 delivery: max bid $34.98
+    outcomes.check(d, FakeAPI({"1": item()}), NOW)  # went for $72
+    html = client.get("/ended").text
+    assert "Snipe would have lost" in html and "$34.98" in html and "it went for $72.00" in html
+    assert "counts in the sold prices" in html  # the sale feeds the comps
+    assert "1 lost, 0 in range" in html
+    assert "$37.00 over your $40.00 ceiling" in html  # $72 + $5 delivery
+
+
+def test_a_max_bid_over_the_final_price_is_in_range_not_a_sure_win(web):
+    d, client = web
+    listing(d, "1")
+    outcomes.check(d, FakeAPI({"1": item(price="30.00")}), NOW)
+    html = client.get("/ended").text
+    # the winner's own maximum and the bid timing are hidden
+    assert "Snipe in range" in html and "more than $30.00" in html
+    assert "would probably have won" not in html
+    assert "0 lost, 1 in range" in html
+    assert "Snipe in range" in client.get("/deal/1/psa").text
+
+
+def test_hindsight_max_bid_uses_only_sales_before_the_end(web):
+    d, client = web
+    listing(d, "1")
+    sales = [(20, "2026-11-01"), (20, "2026-11-02"), (5, "2026-11-09"), (5, "2026-11-09")]
+    sales.append((500, "2026-11-10"))
+    for n, (usd, day) in enumerate(sales):
+        d.run(
+            "INSERT INTO sold (item_id, want_id, kind, star, usd, date, title) "
+            "VALUES (?, 1, 'psa', '2', ?, ?, 'PSA 10 Vegito')",
+            f"s{n}",
+            usd,
+            day,
+        )
+    outcomes.check(d, FakeAPI({"1": item(price="30.00")}), NOW)  # ended 2026-11-09
+    html = client.get("/ended").text
+    # 92% of the $20 median less $5 delivery = $13.40, so $13.39; the $5 sales on the end day,
+    # the later $500 and its own $30 sale do not count
+    assert "Snipe would have lost" in html and "$13.39" in html
+
+
+def test_an_unbid_auction_would_have_been_won_at_the_opening_price(web):
+    d, client = web
+    listing(d, "1")
+    outcomes.check(d, FakeAPI({"1": item(status="IN_STOCK", sold=0, bids=0)}), NOW)
+    assert outcome(d, "1")["status"] == "unsold"
+    html = client.get("/ended").text
+    assert "would probably have won" in html and "$33.00 opening price" in html
+    assert "hidden reserve" in html
+
+
+def test_a_sale_without_bids_has_no_snipe_verdict(web):
+    d, client = web
+    listing(d, "1")
+    outcomes.check(d, FakeAPI({"1": item(bids=0)}), NOW)  # sold by offer or Buy It Now
+    assert outcome(d, "1")["status"] == "sold"
+    html = client.get("/ended").text
+    assert "Not known whether a snipe would have won" in html
+    assert "would probably have won" not in html and "Snipe in range" not in html
+
+
+def test_a_max_bid_already_passed_when_last_seen_is_a_loss(web):
+    d, client = web
+    listing(d, "1")
+    d.run("UPDATE listings SET usd = 34, bids = '3 bids'")  # next bid then: $35 > $34.98 max
+    outcomes.check(d, FakeAPI({"1": item(price="34.00", bids=3)}), NOW)
+    html = client.get("/ended").text
+    assert "Snipe would have lost" in html and "Snipe in range" not in html
+    assert "under the $35.00 minimum bid" in html
+
+
+def test_an_unknown_bid_count_is_not_called_unbid(web):
+    d, client = web
+    listing(d, "1")
+    got = item(status="IN_STOCK", sold=0)
+    del got["bidCount"]
+    outcomes.check(d, FakeAPI({"1": got}), NOW)
+    html = client.get("/ended").text
+    assert "would probably have won" not in html and "Not known" in html
+
+
+def test_a_sighting_after_the_close_does_not_decide_a_loss(web):
+    d, client = web
+    listing(d, "1")  # ends 2026-11-09 18:00 per the API
+    d.run("UPDATE listings SET usd = 34, bids = '3 bids', last_seen = '2026-11-10 08:00'")
+    outcomes.check(d, FakeAPI({"1": item(price="34.00", bids=3)}), NOW)
+    html = client.get("/ended").text
+    assert "Snipe in range" in html  # $34.98 beat the $34 final
+
+
+def test_a_late_sighting_still_needs_the_opening_price_covered(web):
+    d, client = web
+    listing(d, "1")
+    d.run("UPDATE listings SET cap = 18, last_seen = '2026-11-10 08:00'")  # max $12.98 < $33
+    outcomes.check(d, FakeAPI({"1": item(status="IN_STOCK", sold=0, bids=0)}), NOW)
+    html = client.get("/ended").text
+    assert "Snipe would have lost" in html and "would probably have won" not in html

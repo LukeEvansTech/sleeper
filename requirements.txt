@@ -50,7 +50,7 @@ pydantic==2.14.3
     # via fastapi
 pydantic-core==2.50.4
     # via pydantic
-pyee==14.0.0
+pyee==16.0.2
     # via playwright
 python-dateutil==4.0.0
     # via croniter

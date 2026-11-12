@@ -83,6 +83,16 @@ def test_chinese_want_takes_chinese_titles_and_sellers():
     assert not match.keep(w, "psa", "PSA 10 Sylveon ex Spanish", " Located in Hong Kong")
 
 
+def test_cn_titles_and_uk_sellers():
+    w = {"set": "PKM", "who": "Sylveon", "q": "sylveon psa 10", "id": "sylveon", "lang": "chinese"}
+    t = "The Pokémon Company Sylveon ex 234/208 CSV 9.5 CS CN Holo SAR 270HP PSA 10"
+    assert match.keep(w, "psa", t, t + " Located in United Kingdom")  # a UK seller, no import VAT
+    edward = "PSA 10 Edward Elric 2 Star Union Arena UE07BT"
+    assert match.keep(EDWARD, "psa", edward, edward + " Located in United Kingdom")
+    for cn in ("PSA 10 Edward Elric 2 Star Union Arena CN", "PSA 10 Edward Elric CSV 9.5 SAR"):
+        assert not match.keep(EDWARD, "psa", cn, cn), cn  # a Chinese print, for an English want
+
+
 def test_psa_wants_take_psa_slabs_only():
     for t in (
         "TAG 10 Edward Elric 2 Star Union Arena (PSA 10 equivalent)",

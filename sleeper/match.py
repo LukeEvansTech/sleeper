@@ -27,14 +27,15 @@ import re
 import urllib.parse
 
 FOREIGN = re.compile(
-    r"japan|\bjp\b|\bjpn\b|japanese|chinese|korean|\bfrench\b|german|italian|spanish|espa[nñ]ol|"
+    r"japan|\bjp\b|\bjpn\b|japanese|chinese|\bcn\b|\bcsv ?\d|korean|\bfrench\b|german|italian|"
+    r"spanish|espa[nñ]ol|"
     r"portugu[eê]s|\bthai\b|indonesian|ua\d\dbt|uapr|"
     r"ua37|ua44|ex\d\dbt|\bsao\b|proxy|custom|orica|fan ?art|playmat|sleeve",
     re.I,
 )
 FOREIGN_SELLER = re.compile(
     r"(Located in|from) (Japan|Hong Kong|China|Korea|Taiwan|Germany|France|Italy|"
-    r"Spain|Belgium|Netherlands|Australia|United Kingdom)"
+    r"Spain|Belgium|Netherlands|Australia)"
 )
 # Japanese Union Arena codes: promos, boosters, starter decks (UA44ST) and expansions (EX10BT).
 JP_CODES = r"\buapr\b|\bua\d\d(?:bt|st)?\b|\bex\d\dbt\b"
@@ -42,7 +43,7 @@ JP_CODES = r"\buapr\b|\bua\d\d(?:bt|st)?\b|\bex\d\dbt\b"
 LANGS = {
     "english": re.compile(r"english|\beng?\b|\b[u]ex?\d\d(?:bt|st)\b|\b[u]epr\b", re.I),
     "japanese": re.compile(r"japan(?:ese)?|\bjpn?\b|" + JP_CODES, re.I),
-    "chinese": re.compile(r"chinese|simplified|\bcsv?\d", re.I),
+    "chinese": re.compile(r"chinese|simplified|\bcn\b|\bcsv?\d|\bcsv \d", re.I),
 }
 # Where sellers of each language's cards are, as match.FOREIGN_SELLER names them.
 LANG_PLACES = {"japanese": ("Japan",), "chinese": ("China", "Hong Kong", "Taiwan")}

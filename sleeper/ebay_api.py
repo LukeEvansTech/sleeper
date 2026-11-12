@@ -31,7 +31,7 @@ PAGE = 200  # the Browse API's maximum page size
 MAX_ROWS = 400
 MAX_PAGES = 10
 Q_MAX = 100  # longer q strings are truncated by eBay
-# ISO codes for the seller countries match.FOREIGN_SELLER rejects, in the words a search card uses.
+# ISO codes for seller countries, in the words a search card uses (match.FOREIGN_SELLER reads them).
 COUNTRIES = {
     "JP": "Japan",
     "HK": "Hong Kong",

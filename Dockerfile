@@ -20,7 +20,9 @@ COPY requirements.txt ./
 # Chromium and its system libraries come from Playwright's own installer, which pins the browser
 # build to the playwright package version in requirements.txt.
 # Playwright's bundled Node driver links libatomic, which the slim base image lacks; it has to be
-# present before `playwright install` can run at all.
+# present before `playwright install` can run at all. Not version-pinned: the base image digest fixes
+# the Debian release, and a pinned point version vanishes from the mirror after a security update.
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 \
     && pip install --no-cache-dir -r requirements.txt \
     && playwright install --with-deps chromium \

@@ -44,7 +44,7 @@ opencv-python-headless==5.0.0.93
     # via -r requirements.in
 opentelemetry-api==1.45.2
     # via fastapi
-playwright==1.64.1
+playwright==1.65.0
     # via -r requirements.in
 pydantic==2.14.3
     # via fastapi

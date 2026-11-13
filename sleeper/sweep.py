@@ -329,12 +329,15 @@ def _slab_due(r: Any, photo_name: str) -> str:
     if "failed" in v:
         return v["failed"]
     unsure = not v.get("sure") or v.get("grader") == "NONE" or not slab.grade_of(v)
-    return "0" if unsure and v.get("photo") != photo_name else "~"
+    if unsure and v.get("photo") != photo_name:
+        return "0"
+    return "1" if "lang" not in v else "~"  # read before labels were checked for a language
 
 
 def slab_check(db: DB, s: Settings, run_id: int) -> int:
     """Read the slab label of each live PSA 10 listing; drop one that is another grader's slab
-    (a CGC 9 titled "PSA 10") or a lower PSA grade. Returns how many were dropped.
+    (a CGC 9 titled "PSA 10"), a lower PSA grade, or a label naming a language the want is not
+    in (a "JP" label on an English want). Returns how many were dropped.
 
     A deal whose slab could not be read this sweep (over the limit) is held out of this sweep's
     alerts and rated again next sweep. A failed read is not held: an LLM outage must not stop alerts.
@@ -342,10 +345,12 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
     if not s.llm_url:
         return 0
     rows = db.all(
-        "SELECT item_id, kind, img, art, slab, deal FROM listings WHERE kind = 'psa' AND active = 1 "
+        "SELECT item_id, kind, want_id, img, art, slab, deal FROM listings "
+        "WHERE kind = 'psa' AND active = 1 "
         "AND last_run = ?",
         run_id,
     )
+    langs = {w["_id"]: w.get("lang") for w in db.wants()}
     due = []
     for r in rows:
         art = json.loads(r["art"]) if r["art"] else {}
@@ -371,7 +376,7 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
             v = {"failed": dt.datetime.now().isoformat(timespec="seconds")}
         else:
             v["photo"] = art.get("photo") or ""
-        why = slab.wrong(v) if "failed" not in v else ""
+        why = slab.wrong(v, langs.get(r["want_id"])) if "failed" not in v else ""
         with db.tx() as c:  # the read and the rejection together: a cached CGC read always drops
             c.execute(
                 "UPDATE listings SET slab = ? WHERE item_id = ? AND kind = ?",

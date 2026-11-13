@@ -336,8 +336,8 @@ def _slab_due(r: Any, photo_name: str) -> str:
 
 def slab_check(db: DB, s: Settings, run_id: int) -> int:
     """Read the slab label of each live PSA 10 listing; drop one that is another grader's slab
-    (a CGC 9 titled "PSA 10"), a lower PSA grade, or a label naming a language other than the
-    want's (a "JP" label on an English want). Returns how many were dropped.
+    (a CGC 9 titled "PSA 10"), a lower PSA grade, or a label naming a language the want is not
+    in (a "JP" label on an English want). Returns how many were dropped.
 
     A deal whose slab could not be read this sweep (over the limit) is held out of this sweep's
     alerts and rated again next sweep. A failed read is not held: an LLM outage must not stop alerts.

@@ -83,6 +83,8 @@ def test_slab_labels_naming_another_language_rule_out_the_listing():
         slab.parse('{"grader": "PSA", "grade": "10", "lang": "klingon", "sure": true}')["lang"]
         == ""
     )
+    other = slab.parse('{"grader": "PSA", "grade": "10", "lang": "OTHER", "sure": true}')
+    assert slab.wrong(other) == ""  # what the model said of English Final Fantasy MTG labels
     unsure = slab.parse('{"grader": "PSA", "grade": "10", "lang": "JAPANESE", "sure": false}')
     assert slab.wrong(unsure) == ""
 

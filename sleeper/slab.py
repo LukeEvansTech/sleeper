@@ -18,21 +18,23 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 GRADERS = {"PSA", "CGC", "BGS", "SGC", "TAG", "ACE", "ARS", "OTHER", "NONE"}
-LANGS = {"JAPANESE", "CHINESE", "KOREAN", "OTHER"}  # a label naming no language: an English card
+# Only these count: asked for "any other language", the model called English MTG labels OTHER
+# (17 Final Fantasy slabs dropped on 2026-11-13). A label naming none of them is inconclusive.
+LANGS = {"JAPANESE", "CHINESE", "KOREAN"}
 
 PROMPT = """This is a photo from an eBay listing of a graded trading card. Read the grading label on
 the slab (the plastic case) and answer in JSON only:
 
 {"grader": "PSA" | "CGC" | "BGS" | "SGC" | "TAG" | "ACE" | "ARS" | "OTHER" | "NONE",
  "grade": "the numeric grade on the label, e.g. 10 or 9.5, or empty",
- "lang": "JAPANESE" | "CHINESE" | "KOREAN" | "OTHER" | "",
+ "lang": "JAPANESE" | "CHINESE" | "KOREAN" | "",
  "sure": true | false}
 
 PSA labels have a red border and the PSA logo; CGC labels say CGC / CERTIFIED GUARANTY COMPANY;
 BGS / Beckett labels are silver or gold with subgrades. NONE: no slab or no label in the photo.
 lang is the card's language as the label names it: JP or JAPANESE is JAPANESE; CHINESE, S-CHINESE,
-SIMPLIFIED CHINESE, T-CHINESE or CN is CHINESE; KOREAN or KR is KOREAN; any other language named
-(FRENCH, GERMAN, ...) is OTHER; "" when the label names no language.
+SIMPLIFIED CHINESE, T-CHINESE or CN is CHINESE; KOREAN or KR is KOREAN; "" for anything else,
+including a label that names no language.
 sure is true only when the label's company is clearly legible."""
 
 

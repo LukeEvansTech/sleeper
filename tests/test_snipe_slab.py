@@ -67,6 +67,26 @@ def test_slab_reads_rule_out_other_graders_and_lower_grades():
     assert slab.parse("no idea") is None
 
 
+def test_slab_labels_naming_another_language_rule_out_the_listing():
+    jp = slab.parse('{"grader": "PSA", "grade": "10", "lang": "JAPANESE", "sure": true}')
+    assert slab.wrong(jp) == "slab says Japanese"  # an English want: the label reads BT/FMA JP
+    assert slab.wrong(jp, "japanese") == ""
+    cn = slab.parse('{"grader": "PSA", "grade": "10", "lang": "chinese", "sure": true}')
+    assert slab.wrong(cn, "chinese") == ""
+    assert slab.wrong(cn, "japanese") == "slab says Chinese"
+    plain = slab.parse('{"grader": "PSA", "grade": "10", "lang": "", "sure": true}')
+    assert slab.wrong(plain, "japanese") == ""  # no language on the label: inconclusive
+    assert slab.wrong(
+        slab.parse('{"grader": "PSA", "grade": "", "lang": "KOREAN", "sure": true}')
+    ) == ("slab says Korean")
+    assert (
+        slab.parse('{"grader": "PSA", "grade": "10", "lang": "klingon", "sure": true}')["lang"]
+        == ""
+    )
+    unsure = slab.parse('{"grader": "PSA", "grade": "10", "lang": "JAPANESE", "sure": false}')
+    assert slab.wrong(unsure) == ""
+
+
 def test_a_cgc_slab_titled_psa_10_is_dropped(env, monkeypatch):
     s, db, _ = env
     s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
@@ -89,6 +109,37 @@ def test_a_cgc_slab_titled_psa_10_is_dropped(env, monkeypatch):
     assert db.one("SELECT active FROM listings WHERE item_id = '111'")["active"] == 0
     assert db.one("SELECT active FROM listings WHERE item_id = '333'")["active"] == 1
     assert sweep.slab_check(db, s, run_id) == 0  # each listing is read once
+
+
+def test_a_japanese_slab_for_an_english_want_is_dropped(env, monkeypatch):
+    s, db, _ = env
+    s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
+
+    def download(_src, dest):
+        dest.write_bytes(b"x" * 2000)
+        return dest
+
+    asked = []
+
+    def read(_url, _key, _model, photo):  # listing 111's label reads "... JP"
+        asked.append(photo.name)
+        lang = "JAPANESE" if photo.name.startswith("111") else ""
+        return {"grader": "PSA", "grade": "10", "lang": lang, "sure": True}
+
+    monkeypatch.setattr(sweep.photos, "download", download)
+    monkeypatch.setattr(sweep.slab, "read", read)
+    # Both labels were read before the language question was asked: each is read again.
+    old = '{"grader": "PSA", "grade": "10", "sure": true, "photo": ""}'
+    db.run("UPDATE listings SET art = NULL, slab = ?", old)
+    run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
+    assert sweep.slab_check(db, s, run_id) == 1
+    assert len(asked) == 2
+    assert db.one("SELECT reason FROM blocked WHERE item_id = '111'")["reason"] == (
+        "slab says Japanese"
+    )
+    assert db.one("SELECT active FROM listings WHERE item_id = '333'")["active"] == 1
+    assert sweep.slab_check(db, s, run_id) == 0
+    assert len(asked) == 2  # read once more, not every sweep
 
 
 def test_photos_go_to_the_model_as_jpeg(tmp_path):

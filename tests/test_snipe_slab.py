@@ -253,3 +253,53 @@ def test_a_failed_main_photo_read_is_retried(env, monkeypatch):
     run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
     assert sweep.slab_check(db, s, run_id) == 0
     assert "failed" in db.one("SELECT slab FROM listings WHERE item_id = '111'")["slab"]
+
+
+def test_a_cached_gallery_no_slab_read_checks_the_main_photo(env, monkeypatch):
+    s, db, _ = env
+    s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
+
+    def download(_src, dest):
+        dest.write_bytes(b"x" * 2000)
+        return dest
+
+    seen = []
+
+    def read(_url, _key, _model, photo):  # both photos of 111 are bare: a raw card
+        seen.append(photo.name)
+        return {"grader": "NONE", "grade": "", "lang": "", "sure": True}
+
+    monkeypatch.setattr(sweep.photos, "download", download)
+    monkeypatch.setattr(sweep.slab, "read", read)
+    db.run("UPDATE listings SET art = NULL")
+    db.run("UPDATE listings SET art = ? WHERE item_id = '111'", '{"photo": "111_2.jpg"}')
+    db.run(
+        "UPDATE listings SET slab = ? WHERE item_id = '111'",
+        '{"grader": "NONE", "grade": "", "lang": "", "sure": true, "photo": "111_2.jpg"}',
+    )
+    db.run(
+        "UPDATE listings SET slab = ? WHERE item_id = '333'",
+        '{"grader": "PSA", "grade": "10", "lang": "", "sure": true, "photo": ""}',
+    )
+    (s.photos_dir / "111_2.jpg").write_bytes(b"x" * 2000)
+    run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
+    assert sweep.slab_check(db, s, run_id) == 1
+    assert seen == ["111_2.jpg", "111.jpg"]
+
+
+def test_main_photo_fallbacks_count_against_the_read_limit(env, monkeypatch):
+    s, db, _ = env
+    s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
+    monkeypatch.setattr(sweep, "MAX_SLAB_READS", 1)
+    calls = []
+    monkeypatch.setattr(
+        sweep.slab,
+        "read",
+        lambda *a: calls.append(1) or {"grader": "NONE", "grade": "", "lang": "", "sure": True},
+    )
+    monkeypatch.setattr(sweep.photos, "download", lambda _src, dest: dest)
+    db.run("UPDATE listings SET art = ?", '{"verdict": "match", "photo": "111_2.jpg"}')
+    (s.photos_dir / "111_2.jpg").write_bytes(b"x" * 2000)
+    run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
+    sweep.slab_check(db, s, run_id)
+    assert len(calls) == 1

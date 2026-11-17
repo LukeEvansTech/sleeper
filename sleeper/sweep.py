@@ -374,16 +374,18 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
         cached = json.loads(r["slab"])
         why = slab.wrong(cached, langs.get(r["want_id"]))
         on_main = cached.get("main") or _primary(r["item_id"], cached.get("photo") or "")
-        if why == slab.NO_SLAB and not on_main:
-            why = ""  # a bare scan from the gallery: the slab may be in another photo
+        if why == slab.NO_SLAB and not on_main:  # a bare gallery scan: read again, main photo too
+            due.append((0 if r["deal"] else 1, "0", r, art))
+            continue
         if why:
             with db.tx() as c:
                 _block(c, r["item_id"], why)
             dropped += 1
             log.info("listing %s dropped: %s", r["item_id"], why)
     due.sort(key=lambda x: (x[0], x[1]))
-    for n, (_, _, r, art) in enumerate(due):
-        if n >= MAX_SLAB_READS:
+    calls = 0  # model calls this sweep: a main-photo fallback counts as one too
+    for _, _, r, art in due:
+        if calls >= MAX_SLAB_READS:
             if r["deal"] and not r["slab"]:  # never read: no alert until it is
                 db.run(
                     "UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = ?",
@@ -394,6 +396,7 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
         photo = s.photos_dir / art["photo"] if art.get("photo") else None
         if not (photo and photo.exists()):
             photo = photos.download(photos.upgrade(r["img"]), s.photos_dir / f"{r['item_id']}.jpg")
+        calls += 1
         v = slab.read(s.llm_url, s.llm_key, s.llm_model, photo) if photo else None
         if v is None:
             v = {"failed": dt.datetime.now().isoformat(timespec="seconds")}
@@ -402,7 +405,12 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
         why = slab.wrong(v, langs.get(r["want_id"])) if "failed" not in v else ""
         if why == slab.NO_SLAB and not _primary(r["item_id"], v.get("photo") or ""):
             # The photo check picked a gallery scan of the bare card: ask about the main photo.
-            main = photos.download(photos.upgrade(r["img"]), s.photos_dir / f"{r['item_id']}.jpg")
+            main = None
+            if calls < MAX_SLAB_READS:
+                calls += 1
+                main = photos.download(
+                    photos.upgrade(r["img"]), s.photos_dir / f"{r['item_id']}.jpg"
+                )
             again = slab.read(s.llm_url, s.llm_key, s.llm_model, main) if main else None
             if again is None:  # retried next sweep, like any failed read
                 v, why = {"failed": dt.datetime.now().isoformat(timespec="seconds")}, ""

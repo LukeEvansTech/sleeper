@@ -317,6 +317,7 @@ def photo_check(db: DB, s: Settings, b: Source | None, wants: dict[int, dict], r
 
 
 MAX_SLAB_READS = 60  # vision calls per sweep; the rest wait for the next one
+MAX_LANG_READS = 30  # raw-card language reads per sweep
 
 
 def _slab_due(r: Any, photo_name: str) -> str:
@@ -356,6 +357,58 @@ def _block(c: Any, item_id: str, why: str) -> None:
         return
     c.execute("INSERT OR REPLACE INTO blocked (item_id, reason) VALUES (?, ?)", (item_id, why))
     c.execute("UPDATE listings SET active = 0, deal = 0 WHERE item_id = ?", (item_id,))
+
+
+def lang_check(db: DB, s: Settings, run_id: int) -> int:
+    """Read the printed language of each raw deal's card; drop one in a language the want is not
+    in (a Japanese Envy titled with no language, 2026-11-17). Returns how many were dropped.
+
+    Each listing is read once per photo; a deal over the per-sweep limit waits, held, for the next
+    sweep. A failed read is not held: an LLM outage must not stop alerts.
+    """
+    if not s.llm_url:
+        return 0
+    rows = db.all(
+        "SELECT item_id, kind, want_id, img, art, slab, deal FROM listings "
+        "WHERE kind = 'raw' AND active = 1 AND deal = 1 AND last_run = ?",
+        run_id,
+    )
+    langs = {w["_id"]: w.get("lang") for w in db.wants()}
+    dropped = calls = 0
+    for r in rows:
+        art = json.loads(r["art"]) if r["art"] else {}
+        prev = json.loads(r["slab"]) if r["slab"] else {}
+        name = art.get("photo") or ""
+        if "card_lang" in prev and prev.get("photo") == name:
+            v = prev  # read before, same photo
+        elif calls >= MAX_LANG_READS:
+            db.run(  # unread: no alert until it is
+                "UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = 'raw'", r["item_id"]
+            )
+            continue
+        else:
+            photo = s.photos_dir / name if name else None
+            if not (photo and photo.exists()):
+                photo = photos.download(
+                    photos.upgrade(r["img"]), s.photos_dir / f"{r['item_id']}.jpg"
+                )
+            calls += 1
+            got = slab.read_card_lang(s.llm_url, s.llm_key, s.llm_model, photo) if photo else None
+            if got is None:
+                continue  # retried next sweep
+            v = {**got, "photo": name}
+            db.run(
+                "UPDATE listings SET slab = ? WHERE item_id = ? AND kind = 'raw'",
+                json.dumps(v),
+                r["item_id"],
+            )
+        why = slab.card_wrong(v, langs.get(r["want_id"]))
+        if why:
+            with db.tx() as c:
+                _block(c, r["item_id"], why)
+            dropped += 1
+            log.info("listing %s dropped: %s", r["item_id"], why)
+    return dropped
 
 
 def slab_check(db: DB, s: Settings, run_id: int) -> int:
@@ -849,6 +902,7 @@ def run(
                 run_id,
             )
             say(f"slab check: {slab_check(db, s, run_id)} not a PSA 10 slab")
+            say(f"language check: {lang_check(db, s, run_id)} raw cards in another language")
         row = db.one("SELECT count(*) AS n FROM listings WHERE last_run = ? AND deal = 1", run_id)
         deals = row["n"] if row else 0
         first = not db.get("baseline_done", False)

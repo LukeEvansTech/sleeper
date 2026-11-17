@@ -69,7 +69,7 @@ def pop_for(pop: list[dict], w: dict) -> list[dict]:
 
 
 def card_pop(w: dict, star: str, pop_rows: list[dict]) -> tuple[int, int]:
-    """(PSA 10s, total graded) for this card: its pop rows, else the want's psa_pop when it has more."""
+    """(PSA 10s, total graded) for this card: its pop rows, else psa_pop on the want when that has more."""
     rows = [p for p in pop_rows if star_of(p["descr"]) == star]
     gems, total = sum(p["gems"] for p in rows), sum(p["total"] for p in rows)
     typed = w.get("psa_pop") or {}

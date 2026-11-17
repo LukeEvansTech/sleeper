@@ -190,7 +190,7 @@ def searches(w: dict) -> list[tuple[str, str]]:
 
 
 def caution(w: dict, kind: str) -> str:
-    """The want's warning for a raw listing, or "" (a PSA slab has been checked by PSA)."""
+    """Warning text for a raw listing of this want, or "" (a PSA slab has been checked by PSA)."""
     return str(w.get("raw_caution") or "").strip() if kind == "raw" else ""
 
 

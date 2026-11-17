@@ -408,6 +408,12 @@ def lang_check(db: DB, s: Settings, run_id: int) -> int:
             if got is None:  # retried next sweep, after listings never tried
                 now = dt.datetime.now().isoformat(timespec="seconds")
                 v = {**prev, "card_failed": now, "photo": name}
+            elif got["sure"] and got["card_lang"] not in ("NONE", "OTHER"):
+                v = {**got, "photo": name}
+            elif (
+                prev.get("sure") and "card_lang" in prev
+            ):  # inconclusive: the earlier verdict stands
+                v = {**prev, "photo": name}
             else:
                 v = {**got, "photo": name}
             db.run(

@@ -292,3 +292,9 @@ def test_psa_10_prospects_are_not_slabs():
     ]:
         assert not match.keep(w, "psa", t, ""), t
     assert match.keep(w, "psa", "PSA 10 Hoopa 155/XY-P Movie Promo GEM MINT", "")
+
+
+def test_ready_to_ship_is_not_a_psa_10_prospect():
+    w = {"set": "PKM", "who": "Hoopa", "q": "hoopa psa 10"}
+    assert match.keep(w, "psa", "Hoopa 155/XY-P GEM MINT PSA 10 READY TO SHIP", "")
+    assert not match.keep(w, "psa", "Hoopa 155/XY-P PSA 10 READY raw pack fresh", "")

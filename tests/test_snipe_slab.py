@@ -215,3 +215,25 @@ def test_a_cached_no_slab_read_is_dropped_without_reading_again(env, monkeypatch
         "no slab in the photo"
     )
     assert db.one("SELECT active FROM listings WHERE item_id = '333'")["active"] == 1
+
+
+def test_a_bare_gallery_scan_is_checked_against_the_main_photo(env, monkeypatch):
+    s, db, _ = env
+    s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
+
+    def download(_src, dest):
+        dest.write_bytes(b"x" * 2000)
+        return dest
+
+    def read(_url, _key, _model, photo):  # the gallery scan is bare, the main photo a slab
+        if "_" in photo.stem:
+            return {"grader": "NONE", "grade": "", "lang": "", "sure": True}
+        return {"grader": "PSA", "grade": "10", "lang": "", "sure": True}
+
+    monkeypatch.setattr(sweep.photos, "download", download)
+    monkeypatch.setattr(sweep.slab, "read", read)
+    db.run("UPDATE listings SET art = ?", '{"verdict": "match", "photo": "111_2.jpg"}')
+    (s.photos_dir / "111_2.jpg").write_bytes(b"x" * 2000)
+    run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
+    assert sweep.slab_check(db, s, run_id) == 0
+    assert db.one("SELECT active FROM listings WHERE item_id = '111'")["active"] == 1

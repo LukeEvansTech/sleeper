@@ -334,6 +334,11 @@ def _slab_due(r: Any, photo_name: str) -> str:
     return "1" if "lang" not in v else "~"  # read before labels were checked for a language
 
 
+def _primary(item_id: str, photo_name: str) -> bool:
+    """Was this the listing's main photo? Gallery photos are saved as <item>_<n>.jpg."""
+    return photo_name in ("", f"{item_id}.jpg")
+
+
 def _block(c: Any, item_id: str, why: str) -> None:
     """Block a listing for good and take it off the live and deal lists, inside the caller's tx."""
     c.execute("INSERT OR REPLACE INTO blocked (item_id, reason) VALUES (?, ?)", (item_id, why))
@@ -366,7 +371,10 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
             due.append((0 if r["deal"] else 1, key, r, art))
             continue
         # A read kept from an earlier sweep still faces today's rules (a cached NONE, say).
-        why = slab.wrong(json.loads(r["slab"]), langs.get(r["want_id"]))
+        cached = json.loads(r["slab"])
+        why = slab.wrong(cached, langs.get(r["want_id"]))
+        if why == slab.NO_SLAB and not _primary(r["item_id"], cached.get("photo") or ""):
+            why = ""  # a bare scan from the gallery: the slab may be in another photo
         if why:
             with db.tx() as c:
                 _block(c, r["item_id"], why)
@@ -391,6 +399,15 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
         else:
             v["photo"] = art.get("photo") or ""
         why = slab.wrong(v, langs.get(r["want_id"])) if "failed" not in v else ""
+        if why == slab.NO_SLAB and not _primary(r["item_id"], v.get("photo") or ""):
+            # The photo check picked a gallery scan of the bare card: ask about the main photo.
+            main = photos.download(photos.upgrade(r["img"]), s.photos_dir / f"{r['item_id']}.jpg")
+            again = slab.read(s.llm_url, s.llm_key, s.llm_model, main) if main else None
+            if again is None:
+                why = ""
+            else:
+                v = {**again, "photo": ""}
+                why = slab.wrong(v, langs.get(r["want_id"]))
         with db.tx() as c:  # the read and the rejection together: a cached CGC read always drops
             c.execute(
                 "UPDATE listings SET slab = ? WHERE item_id = ? AND kind = ?",

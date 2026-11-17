@@ -21,6 +21,7 @@ GRADERS = {"PSA", "CGC", "BGS", "SGC", "TAG", "ACE", "ARS", "OTHER", "NONE"}
 # Only these count: asked for "any other language", the model called English MTG labels OTHER
 # (17 Final Fantasy slabs dropped on 2026-11-13). A label naming none of them is inconclusive.
 LANGS = {"JAPANESE", "CHINESE", "KOREAN"}
+NO_SLAB = "no slab in the photo"
 
 PROMPT = """This is a photo from an eBay listing of a graded trading card. Read the grading label on
 the slab (the plastic case) and answer in JSON only:
@@ -130,7 +131,7 @@ def wrong(v: dict | None, lang: str | None = None) -> str:
     if not v or not v["sure"]:
         return ""
     if v["grader"] == "NONE":
-        return "no slab in the photo"  # a raw card titled "PSA 10" (seen 2026-11-17)
+        return NO_SLAB  # a raw card titled "PSA 10" (seen 2026-11-17)
     if v["grader"] != "PSA":
         return f"slab is {v['grader']} {v['grade']}".strip()
     said = v.get("lang") or ""

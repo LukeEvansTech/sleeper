@@ -195,3 +195,20 @@ def test_the_likely_finish_includes_delivery():
     cmp = value.comps(sold("psa", "2", 100), TODAY)
     v = value.assess(auction(10, ship=30, cap=110), W, cmp, [], {}, 39.99, 6, now=NOW)
     assert v.expected == 130 and not v.is_deal
+
+
+def test_typed_psa_pop_sets_the_gem_rate_and_band():
+    w = {"set": "FIN", "psa_pop": {"gems": 1, "total": 27}}
+    assert value.card_pop(w, "-", []) == (1, 27)
+    rate, src = value.gem_rate(w, "-", [], {"FIN": 0.6})
+    assert round(rate, 3) == 0.037 and "1/27" in src
+    assert value.Verdict("good", "", "", gem=rate).gem_band == "low"
+    assert value.Verdict("good", "", "", gem=0.3).gem_band == "mid"
+    assert value.Verdict("good", "", "", gem=0.5).gem_band == "high"
+    assert value.Verdict("good", "", "").gem_band == ""
+
+
+def test_a_running_auction_is_never_a_steal_on_its_opening_bid():
+    assert value.Verdict("great", "", "", total=30, median=100).steal
+    assert not value.Verdict("great", "", "", total=30, median=100, expected=100).steal
+    assert not value.Verdict("great", "", "", total=50, median=100).steal

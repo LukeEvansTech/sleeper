@@ -274,3 +274,28 @@ def test_stated_stars_ignores_generic_art_words():
 def test_spaced_serial_is_not_a_card_number():
     assert match.BARE_NO.findall("Union Arena Edward Elric 3 Star Serial #001 /250 PSA 10") == []
     assert match.BARE_NO.findall("Union Arena Lanfan (023) SR*") == ["023"]
+
+
+def test_caution_is_for_raw_listings_only():
+    w = {"raw_caution": " Proxies are sold. "}
+    assert match.caution(w, "raw") == "Proxies are sold."
+    assert match.caution(w, "psa") == ""
+    assert match.caution({}, "raw") == ""
+
+
+def test_psa_10_prospects_are_not_slabs():
+    w = {"set": "PKM", "who": "Hoopa", "q": "hoopa psa 10"}
+    for t in [
+        "Hoopa #155/XY-P Movie Promo Holo 2015 Sealed NM PSA 10 CONTENDER",
+        "Hoopa 155/XY-P potential PSA 10",
+        "Hoopa XY-P 155 PSA 10?",
+    ]:
+        assert not match.keep(w, "psa", t, ""), t
+    assert match.keep(w, "psa", "PSA 10 Hoopa 155/XY-P Movie Promo GEM MINT", "")
+
+
+def test_ready_to_ship_is_not_a_psa_10_prospect():
+    w = {"set": "PKM", "who": "Hoopa", "q": "hoopa psa 10"}
+    assert match.keep(w, "psa", "Hoopa 155/XY-P GEM MINT PSA 10 READY TO SHIP", "")
+    assert match.keep(w, "psa", "Hoopa 155/XY-P GEM MINT PSA 10 READY FOR DISPATCH", "")
+    assert match.keep(w, "psa", "Hoopa 155/XY-P PSA 10 Contenders promo", "")

@@ -97,7 +97,7 @@ def candidates(db: DB, now: dt.datetime, limit: int = MAX_CHECKS) -> list[dict]:
     due = (now - dt.timedelta(hours=RECHECK_HOURS)).isoformat(timespec="seconds")
     stop = (now - dt.timedelta(days=GIVE_UP_DAYS)).isoformat(timespec="seconds")
     rows = db.all(
-        """SELECT l.item_id, l.kind, l.want_id, l.star, l.title, l.obo, l.auction, l.art, o.checked_at
+        """SELECT l.item_id, l.kind, l.want_id, l.star, l.title, l.obo, l.auction, l.art, l.slab, o.checked_at
            FROM listings l LEFT JOIN outcomes o ON o.item_id = l.item_id
            WHERE (l.active = 0 OR (l.auction = 1 AND l.ends IS NOT NULL AND l.ends < ?))
              AND (o.item_id IS NULL
@@ -137,11 +137,13 @@ def record(db: DB, cand: dict, got: dict | None, now: dt.datetime) -> str:
         # Only an auction's final price is a price someone paid: a fixed-price listing's sold count
         # is cumulative at no known price (offers, earlier prices), and a rejected listing (blocked,
         # wrong slab, another card's photo) is not this card.
-        rejected = c.execute(
-            "SELECT 1 FROM blocked WHERE item_id = ?", (cand["item_id"],)
-        ).fetchone() or (json.loads(cand["art"]) if cand["art"] else {}).get("verdict") in (
-            "differs",
-            "unwanted",
+        read = json.loads(cand["slab"]) if cand["slab"] else {}
+        rejected = (
+            c.execute("SELECT 1 FROM blocked WHERE item_id = ?", (cand["item_id"],)).fetchone()
+            or (json.loads(cand["art"]) if cand["art"] else {}).get("verdict")
+            in ("differs", "unwanted")
+            or read.get("hold")  # seen as a bare card: not a PSA sale
+            or (read.get("grader") == "NONE" and read.get("sure"))
         )
         if o["status"] == "sold" and cand["auction"] and (o["bids"] or 0) >= 1 and not rejected:
             w = c.execute("SELECT id, spec FROM wants WHERE id = ?", (cand["want_id"],)).fetchone()

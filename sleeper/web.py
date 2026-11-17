@@ -130,6 +130,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
     tpl.env.filters["ebay_img"] = ebay_img
     tpl.env.filters["pct"] = pct
     tpl.env.globals["gixen_link"] = gixen_link
+    tpl.env.globals["caution"] = match.caution
     tpl.env.globals["landed"] = lambda r, usd: usd + (r.get("ship") or 0)
     tpl.env.globals["version"] = s.version
 

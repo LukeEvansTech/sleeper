@@ -61,7 +61,11 @@ def test_slab_reads_rule_out_other_graders_and_lower_grades():
     )
     assert slab.wrong(slab.parse('{"grader": "PSA", "grade": "10", "sure": true}')) == ""
     assert slab.wrong(slab.parse('{"grader": "CGC", "grade": "9", "sure": false}')) == ""
-    assert slab.wrong(slab.parse('{"grader": "NONE", "grade": "", "sure": true}')) == ""
+    assert (
+        slab.wrong(slab.parse('{"grader": "NONE", "grade": "", "sure": true}'))
+        == "no slab in the photo"
+    )
+    assert slab.wrong(slab.parse('{"grader": "NONE", "grade": "", "sure": false}')) == ""
     assert slab.wrong(slab.parse('{"grader": "PSA", "grade": "10.00", "sure": true}')) == ""
     assert slab.wrong(slab.parse('{"grader": "PSA", "grade": "unreadable", "sure": true}')) == ""
     assert slab.parse("no idea") is None
@@ -190,3 +194,215 @@ def test_the_gixen_bid_is_filled_in_only_for_dollar_listings(env):
     assert "autosnipe.php?itemid=111&amp;maxbid=" in client.get("/?show=all").text
     db.run("UPDATE listings SET cur = 'CAD' WHERE item_id = '111'")
     assert "maxbid" not in client.get("/?show=all").text
+
+
+def test_a_cached_no_slab_read_is_dropped_without_reading_again(env, monkeypatch):
+    s, db, _ = env
+    s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
+    monkeypatch.setattr(sweep.slab, "read", lambda *a: pytest.fail("cached read re-read"))
+    db.run("UPDATE listings SET art = NULL")
+    db.run(
+        "UPDATE listings SET slab = ? WHERE item_id = '111'",
+        '{"grader": "NONE", "grade": "", "lang": "", "sure": true, "photo": "", "prompt": 2}',
+    )
+    db.run(
+        "UPDATE listings SET slab = ? WHERE item_id = '333'",
+        '{"grader": "PSA", "grade": "10", "lang": "", "sure": true, "photo": ""}',
+    )
+    run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
+    assert sweep.slab_check(db, s, run_id) == 1
+    held = db.one("SELECT active, deal FROM listings WHERE item_id = '111'")
+    assert held["deal"] == 0 and held["active"] == 1  # held, not blocked: still in All live
+    assert db.one("SELECT count(*) AS n FROM blocked")["n"] == 0
+    assert db.one("SELECT deal FROM listings WHERE item_id = '333'")["deal"] == 1
+
+
+def test_a_bare_gallery_scan_is_checked_against_the_main_photo(env, monkeypatch):
+    s, db, _ = env
+    s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
+
+    def download(_src, dest):
+        dest.write_bytes(b"x" * 2000)
+        return dest
+
+    def read(_url, _key, _model, photo):  # the gallery scan is bare, the main photo a slab
+        if "_" in photo.stem:
+            return {"grader": "NONE", "grade": "", "lang": "", "sure": True}
+        return {"grader": "PSA", "grade": "10", "lang": "", "sure": True}
+
+    monkeypatch.setattr(sweep.photos, "download", download)
+    monkeypatch.setattr(sweep.slab, "read", read)
+    db.run("UPDATE listings SET art = ?", '{"verdict": "match", "photo": "111_2.jpg"}')
+    (s.photos_dir / "111_2.jpg").write_bytes(b"x" * 2000)
+    run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
+    assert sweep.slab_check(db, s, run_id) == 0
+    assert db.one("SELECT active FROM listings WHERE item_id = '111'")["active"] == 1
+    monkeypatch.setattr(sweep.slab, "read", lambda *a: pytest.fail("unchanged photo re-read"))
+    assert sweep.slab_check(db, s, run_id) == 0
+
+
+def test_a_failed_main_photo_read_is_retried(env, monkeypatch):
+    s, db, _ = env
+    s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
+    monkeypatch.setattr(sweep.photos, "download", lambda _src, _dest: None)
+    monkeypatch.setattr(
+        sweep.slab, "read", lambda *a: {"grader": "NONE", "grade": "", "lang": "", "sure": True}
+    )
+    db.run("UPDATE listings SET art = ?", '{"verdict": "match", "photo": "111_2.jpg"}')
+    (s.photos_dir / "111_2.jpg").write_bytes(b"x" * 2000)
+    run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
+    sweep.slab_check(db, s, run_id)
+    read = db.one("SELECT slab, deal FROM listings WHERE item_id = '111'")
+    assert "failed" in read["slab"] and read["deal"] == 0  # retried next sweep, held till then
+
+
+def test_a_cached_gallery_no_slab_read_checks_the_main_photo(env, monkeypatch):
+    s, db, _ = env
+    s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
+
+    def download(_src, dest):
+        dest.write_bytes(b"x" * 2000)
+        return dest
+
+    seen = []
+
+    def read(_url, _key, _model, photo):  # both photos of 111 are bare: a raw card
+        seen.append(photo.name)
+        return {"grader": "NONE", "grade": "", "lang": "", "sure": True}
+
+    monkeypatch.setattr(sweep.photos, "download", download)
+    monkeypatch.setattr(sweep.slab, "read", read)
+    db.run("UPDATE listings SET art = NULL")
+    db.run("UPDATE listings SET art = ? WHERE item_id = '111'", '{"photo": "111_2.jpg"}')
+    db.run(
+        "UPDATE listings SET slab = ? WHERE item_id = '111'",
+        '{"grader": "NONE", "grade": "", "lang": "", "sure": true, "photo": "111_2.jpg", "prompt": 2}',
+    )
+    db.run(
+        "UPDATE listings SET slab = ? WHERE item_id = '333'",
+        '{"grader": "PSA", "grade": "10", "lang": "", "sure": true, "photo": ""}',
+    )
+    (s.photos_dir / "111_2.jpg").write_bytes(b"x" * 2000)
+    run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
+    assert sweep.slab_check(db, s, run_id) == 1
+    assert seen == ["111_2.jpg", "111.jpg"]
+
+
+def test_main_photo_fallbacks_count_against_the_read_limit(env, monkeypatch):
+    s, db, _ = env
+    s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
+    monkeypatch.setattr(sweep, "MAX_SLAB_READS", 1)
+    calls = []
+    monkeypatch.setattr(
+        sweep.slab,
+        "read",
+        lambda *a: calls.append(1) or {"grader": "NONE", "grade": "", "lang": "", "sure": True},
+    )
+    monkeypatch.setattr(sweep.photos, "download", lambda _src, dest: dest)
+    db.run("UPDATE listings SET art = ?", '{"verdict": "match", "photo": "111_2.jpg"}')
+    (s.photos_dir / "111_2.jpg").write_bytes(b"x" * 2000)
+    run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
+    sweep.slab_check(db, s, run_id)
+    assert len(calls) == 1
+    assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0  # held
+    # next sweep: the deal is back, the budget goes elsewhere, and it stays held
+    db.run("UPDATE listings SET deal = 1 WHERE item_id = '111'")
+    monkeypatch.setattr(sweep, "MAX_SLAB_READS", 0)
+    sweep.slab_check(db, s, run_id)
+    assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0
+    # and a failed retry of the gallery photo keeps it held too
+    db.run("UPDATE listings SET deal = 1 WHERE item_id = '111'")
+    monkeypatch.setattr(sweep, "MAX_SLAB_READS", 5)
+    monkeypatch.setattr(sweep.slab, "read", lambda *a: None)
+    sweep.slab_check(db, s, run_id)
+    assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0
+    assert '"pending": true' in db.one("SELECT slab FROM listings WHERE item_id = '111'")["slab"]
+
+
+def test_none_reads_from_the_old_prompt_are_read_again():
+    old = {"slab": '{"grader": "NONE", "grade": "", "lang": "", "sure": false, "photo": ""}'}
+    new = {"slab": '{"grader": "NONE", "lang": "", "sure": false, "photo": "", "prompt": 2}'}
+    due = sweep._slab_due  # pylint: disable=protected-access
+    assert due(old, "") == "0"
+    assert due(new, "") == "~"
+
+
+def test_a_pending_check_goes_straight_to_the_main_photo(env, monkeypatch):
+    s, db, _ = env
+    s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
+    seen = []
+
+    def read(_url, _key, _model, photo):
+        seen.append(photo.name)
+        return {"grader": "PSA", "grade": "10", "lang": "", "sure": True}
+
+    monkeypatch.setattr(sweep.photos, "download", lambda _src, dest: dest)
+    monkeypatch.setattr(sweep.slab, "read", read)
+    db.run("UPDATE listings SET art = NULL")
+    db.run("UPDATE listings SET art = ? WHERE item_id = '111'", '{"photo": "111_2.jpg"}')
+    db.run(
+        "UPDATE listings SET slab = ? WHERE item_id = '111'",
+        '{"failed": "2026-11-17T00:00:00", "pending": true}',
+    )
+    db.run(
+        "UPDATE listings SET slab = ? WHERE item_id = '333'",
+        '{"grader": "PSA", "grade": "10", "lang": "", "sure": true, "photo": ""}',
+    )
+    (s.photos_dir / "111_2.jpg").write_bytes(b"x" * 2000)
+    run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
+    assert sweep.slab_check(db, s, run_id) == 0
+    assert seen == ["111.jpg"]
+    assert '"main": true' in db.one("SELECT slab FROM listings WHERE item_id = '111'")["slab"]
+
+
+def test_a_known_bare_card_stays_held_while_its_new_photo_waits(env, monkeypatch):
+    s, db, _ = env
+    s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
+    monkeypatch.setattr(sweep, "MAX_SLAB_READS", 0)
+    db.run("UPDATE listings SET art = ? WHERE item_id = '111'", '{"photo": "111_3.jpg"}')
+    db.run(
+        "UPDATE listings SET slab = ? WHERE item_id = '111'",
+        '{"grader": "NONE", "grade": "", "lang": "", "sure": true, "photo": "", "prompt": 2}',
+    )
+    run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
+    sweep.slab_check(db, s, run_id)
+    assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0
+
+
+def test_a_good_reread_lifts_the_hold_and_a_failed_one_keeps_it(env, monkeypatch):
+    s, db, _ = env
+    s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
+    bare = '{"grader": "NONE", "grade": "", "lang": "", "sure": true, "photo": "", "prompt": 2}'
+    db.run("UPDATE listings SET art = ? WHERE item_id = '111'", '{"photo": "111_3.jpg"}')
+    db.run("UPDATE listings SET slab = ?, deal = 1 WHERE item_id = '111'", bare)
+    (s.photos_dir / "111_3.jpg").write_bytes(b"x" * 2000)
+    run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
+    monkeypatch.setattr(sweep.slab, "read", lambda *a: None)
+    sweep.slab_check(db, s, run_id)
+    assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0
+    assert '"hold": true' in db.one("SELECT slab FROM listings WHERE item_id = '111'")["slab"]
+    db.run("UPDATE listings SET slab = ?, deal = 1 WHERE item_id = '111'", bare)
+    monkeypatch.setattr(
+        sweep.slab, "read", lambda *a: {"grader": "PSA", "grade": "10", "lang": "", "sure": True}
+    )
+    sweep.slab_check(db, s, run_id)
+    assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 1
+
+
+def test_an_unsure_reread_keeps_a_bare_card_held(env, monkeypatch):
+    s, db, _ = env
+    s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
+    bare = '{"grader": "NONE", "grade": "", "lang": "", "sure": true, "photo": "", "prompt": 2}'
+    db.run("UPDATE listings SET art = ? WHERE item_id = '111'", '{"photo": "111.jpg"}')
+    db.run("UPDATE listings SET slab = ?, deal = 1 WHERE item_id = '111'", bare)
+    (s.photos_dir / "111.jpg").write_bytes(b"x" * 2000)
+    monkeypatch.setattr(
+        sweep.slab, "read", lambda *a: {"grader": "NONE", "grade": "", "lang": "", "sure": False}
+    )
+    run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
+    sweep.slab_check(db, s, run_id)
+    assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0
+    db.run("UPDATE listings SET deal = 1 WHERE item_id = '111'")  # next sweep's store()
+    monkeypatch.setattr(sweep.slab, "read", lambda *a: pytest.fail("cached read re-read"))
+    sweep.slab_check(db, s, run_id)
+    assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0

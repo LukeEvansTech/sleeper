@@ -720,3 +720,37 @@ def test_deals_list_hides_a_photo_of_another_card(env):
     search = client.get("/api/search").json()
     assert sorted(d["href"].split("/")[2] for d in search["deals"]) == ["new1", "ok1"]
     assert search["wants"][0]["side"] == "2 deals, 3 live"
+
+
+def test_raw_caution_shows_on_raw_tiles_deal_page_and_alert(env, monkeypatch):
+    s, db, client = env
+    sent = []
+    monkeypatch.setattr(sweep.notify, "send", lambda *a, **k: sent.append(a) or "sent")
+    want = {
+        "set": "FIN",
+        "who": "Yojimbo",
+        "q": "yojimbo psa 10",
+        "rawq": "yojimbo solitude",
+        "nostar": True,
+        "max": {"any": 2000},
+        "raw_max": 1000,
+        "raw_caution": "Proxies of this card are sold.",
+        "psa_pop": {"gems": 1, "total": 27},
+    }
+    client.post("/api/import", json={"wants": [want]})
+    raw = {
+        "id": "333",
+        "title": "Yojimbo Solitude Secret Lair 7004 Foil",
+        "price": "$800.00",
+        "text": "Yojimbo Solitude Secret Lair 7004 Foil $800.00 +$5.00 delivery",
+        "img": "https://i.ebayimg.com/images/g/x/s-l140.jpg",
+    }
+    sweep.run(db, s, browser=lambda: FakeBrowser([]))  # baseline with nothing live
+    sweep.run(db, s, browser=lambda: FakeBrowser([raw]))
+    alert = next(a for a in sent if a[3].endswith("/deal/333/raw"))
+    assert "Fake risk: Proxies of this card are sold." in alert[2]
+    page = client.get("/deal/333/raw").text
+    assert 'class="caution big"' in page and "Proxies of this card are sold." in page
+    home = client.get("/").text
+    assert 'class="caution"' in home
+    assert "gem-low" in home and "4% gem rate" in home and "PSA pop 1/27" in home

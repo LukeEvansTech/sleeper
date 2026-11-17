@@ -328,10 +328,34 @@ def _slab_due(r: Any, photo_name: str) -> str:
         return ""
     if "failed" in v:
         return v["failed"]
+    if v.get("grader") == "NONE" and v.get("prompt") != slab.PROMPT_V:
+        return "0"  # read before the prompt could say "bare card": read once more
     unsure = not v.get("sure") or v.get("grader") == "NONE" or not slab.grade_of(v)
     if unsure and v.get("photo") != photo_name:
         return "0"
     return "1" if "lang" not in v else "~"  # read before labels were checked for a language
+
+
+def _bare(read: dict, lang: str | None) -> bool:
+    """Has this listing been seen as a bare card, with no PSA slab read since?"""
+    return bool(read.get("hold")) or (
+        "failed" not in read and slab.wrong(read, lang) == slab.NO_SLAB
+    )
+
+
+def _primary(item_id: str, photo_name: str) -> bool:
+    """Was this the listing's main photo? Gallery photos are saved as <item>_<n>.jpg."""
+    return photo_name in ("", f"{item_id}.jpg")
+
+
+def _block(c: Any, item_id: str, why: str) -> None:
+    """Block a listing for good and take it off the live and deal lists, inside the caller's tx.
+    A photo with no slab only holds the deal: the slab may be in a photo that was not read."""
+    if why == slab.NO_SLAB:
+        c.execute("UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = 'psa'", (item_id,))
+        return
+    c.execute("INSERT OR REPLACE INTO blocked (item_id, reason) VALUES (?, ?)", (item_id, why))
+    c.execute("UPDATE listings SET active = 0, deal = 0 WHERE item_id = ?", (item_id,))
 
 
 def slab_check(db: DB, s: Settings, run_id: int) -> int:
@@ -352,43 +376,94 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
     )
     langs = {w["_id"]: w.get("lang") for w in db.wants()}
     due = []
+    dropped = 0
     for r in rows:
         art = json.loads(r["art"]) if r["art"] else {}
         key = _slab_due(r, art.get("photo") or "")
         if key != "~":
+            prev = json.loads(r["slab"]) if r["slab"] else {}
+            if _bare(prev, langs.get(r["want_id"])):
+                with db.tx() as c:  # a known bare card stays held until a new read clears it
+                    _block(c, r["item_id"], slab.NO_SLAB)
             due.append((0 if r["deal"] else 1, key, r, art))
+            continue
+        # A read kept from an earlier sweep still faces today's rules (a cached NONE, say).
+        cached = json.loads(r["slab"])
+        why = slab.wrong(cached, langs.get(r["want_id"]))
+        if not why and cached.get("hold"):
+            why = slab.NO_SLAB  # seen bare before, and no PSA slab read since
+        on_main = cached.get("main") or _primary(r["item_id"], cached.get("photo") or "")
+        if why == slab.NO_SLAB and not on_main:  # a bare gallery scan: read again, main photo too
+            with db.tx() as c:  # held meanwhile
+                _block(c, r["item_id"], slab.NO_SLAB)
+            due.append((0 if r["deal"] else 1, "0", r, art))
+            continue
+        if why:
+            with db.tx() as c:
+                _block(c, r["item_id"], why)
+            dropped += 1
+            log.info("listing %s dropped: %s", r["item_id"], why)
     due.sort(key=lambda x: (x[0], x[1]))
-    dropped = 0
-    for n, (_, _, r, art) in enumerate(due):
-        if n >= MAX_SLAB_READS:
-            if r["deal"] and not r["slab"]:  # never read: no alert until it is
+    calls = 0  # model calls this sweep: a main-photo fallback counts as one too
+    for _, _, r, art in due:
+        if calls >= MAX_SLAB_READS:
+            prev = json.loads(r["slab"]) if r["slab"] else {}
+            unfinished = prev.get("pending") or _bare(prev, langs.get(r["want_id"]))
+            if r["deal"] and (not r["slab"] or unfinished):  # unread or unfinished: no alert yet
                 db.run(
                     "UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = ?",
                     r["item_id"],
                     r["kind"],
                 )
             continue
-        photo = s.photos_dir / art["photo"] if art.get("photo") else None
+        lang = langs.get(r["want_id"])
+        prev = json.loads(r["slab"]) if r["slab"] else {}
+        pending = bool(prev.get("pending"))  # owes a read of the main photo: go straight to it
+        bare = _bare(prev, lang)  # seen as a bare card, with no PSA slab read since
+        main_path = s.photos_dir / f"{r['item_id']}.jpg"
+        photo = s.photos_dir / art["photo"] if art.get("photo") and not pending else None
         if not (photo and photo.exists()):
-            photo = photos.download(photos.upgrade(r["img"]), s.photos_dir / f"{r['item_id']}.jpg")
+            photo = photos.download(photos.upgrade(r["img"]), main_path)
+        calls += 1
         v = slab.read(s.llm_url, s.llm_key, s.llm_model, photo) if photo else None
-        if v is None:
+        need_main = False
+        if v is not None:
+            v.update(photo=art.get("photo") or "", prompt=slab.PROMPT_V, main=photo == main_path)
+            if slab.wrong(v, lang) == slab.NO_SLAB:
+                bare = True
+                if not v["main"]:  # a gallery scan of the bare card: the main photo decides
+                    need_main = True
+                    again = None
+                    if calls < MAX_SLAB_READS:
+                        calls += 1
+                        main = photos.download(photos.upgrade(r["img"]), main_path)
+                        again = slab.read(s.llm_url, s.llm_key, s.llm_model, main) if main else None
+                    v = None
+                    if again is not None:  # keyed to the same photo choice: not read again
+                        v = {**again, "photo": art.get("photo") or "", "main": True}
+                        v["prompt"] = slab.PROMPT_V
+        if v is None:  # retried next sweep like any failed read
             v = {"failed": dt.datetime.now().isoformat(timespec="seconds")}
-        else:
-            v["photo"] = art.get("photo") or ""
-        why = slab.wrong(v, langs.get(r["want_id"])) if "failed" not in v else ""
+            if pending or need_main:
+                v["pending"] = True
+        confirmed = v.get("grader") == "PSA" and bool(v.get("sure"))
+        why = slab.wrong(v, lang) if "failed" not in v else ""
+        if bare and not confirmed:
+            v["hold"] = True  # only a confident PSA read clears a card seen bare
+            why = why or slab.NO_SLAB
+        elif v.get("pending"):
+            why = slab.NO_SLAB  # held until its main photo is read
         with db.tx() as c:  # the read and the rejection together: a cached CGC read always drops
             c.execute(
                 "UPDATE listings SET slab = ? WHERE item_id = ? AND kind = ?",
                 (json.dumps(v), r["item_id"], r["kind"]),
             )
             if why:
+                _block(c, r["item_id"], why)
+            elif bare and confirmed and r["deal"]:  # the PSA slab read lifts the hold
                 c.execute(
-                    "INSERT OR REPLACE INTO blocked (item_id, reason) VALUES (?, ?)",
-                    (r["item_id"], why),
-                )
-                c.execute(
-                    "UPDATE listings SET active = 0, deal = 0 WHERE item_id = ?", (r["item_id"],)
+                    "UPDATE listings SET deal = 1 WHERE item_id = ? AND kind = ?",
+                    (r["item_id"], r["kind"]),
                 )
         if why:
             dropped += 1
@@ -547,9 +622,15 @@ def alert(db: DB, s: Settings, run_id: int, wants: dict[int, dict]) -> tuple[int
         tag = {"match": "art ✓", "unclear": "art ?"}.get(art.get("verdict", ""), "")
         drop = " (price drop)" if r["alerted_usd"] else ""
         title = f"{v.rating.upper()}: {v.headline}{drop}"
+        warn = match.caution(wants.get(r["want_id"]) or {}, r["kind"])
         body = " · ".join(
             x
-            for x in [v.advice, r["time_left"] and f"auction {r['bids']} {r['time_left']}", tag]
+            for x in [
+                warn and f"⚠ Fake risk: {warn}",
+                v.advice,
+                r["time_left"] and f"auction {r['bids']} {r['time_left']}",
+                tag,
+            ]
             if x
         )
         res = notify.send(

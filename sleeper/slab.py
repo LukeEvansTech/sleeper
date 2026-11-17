@@ -21,6 +21,8 @@ GRADERS = {"PSA", "CGC", "BGS", "SGC", "TAG", "ACE", "ARS", "OTHER", "NONE"}
 # Only these count: asked for "any other language", the model called English MTG labels OTHER
 # (17 Final Fantasy slabs dropped on 2026-11-13). A label naming none of them is inconclusive.
 LANGS = {"JAPANESE", "CHINESE", "KOREAN"}
+NO_SLAB = "no slab in the photo"
+PROMPT_V = 2  # 2: sure may be true for NONE when the photo shows a bare card
 
 PROMPT = """This is a photo from an eBay listing of a graded trading card. Read the grading label on
 the slab (the plastic case) and answer in JSON only:
@@ -35,7 +37,8 @@ BGS / Beckett labels are silver or gold with subgrades. NONE: no slab or no labe
 lang is the card's language as the label names it: JP or JAPANESE is JAPANESE; CHINESE, S-CHINESE,
 SIMPLIFIED CHINESE, T-CHINESE or CN is CHINESE; KOREAN or KR is KOREAN; "" for anything else,
 including a label that names no language.
-sure is true only when the label's company is clearly legible."""
+sure is true only when the label's company is clearly legible, or, for NONE, when the photo
+clearly shows a bare card with no slab around it."""
 
 
 def read(url: str, key: str, model: str, photo: Path, timeout: int = 90) -> dict | None:
@@ -126,8 +129,10 @@ def grade_of(v: dict) -> float | None:
 
 def wrong(v: dict | None, lang: str | None = None) -> str:
     """Why a slab read rules out a PSA 10 listing of a want in lang (None: English), or ''."""
-    if not v or not v["sure"] or v["grader"] == "NONE":
+    if not v or not v["sure"]:
         return ""
+    if v["grader"] == "NONE":
+        return NO_SLAB  # a raw card titled "PSA 10" (seen 2026-11-17)
     if v["grader"] != "PSA":
         return f"slab is {v['grader']} {v['grade']}".strip()
     said = v.get("lang") or ""

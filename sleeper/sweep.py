@@ -407,7 +407,9 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
         # A listing still owing its main-photo check goes straight to the main photo.
         prev = json.loads(r["slab"]) if r["slab"] else {}
         pending = bool(prev.get("pending"))
-        was_bare = "failed" not in prev and slab.wrong(prev, langs.get(r["want_id"])) == slab.NO_SLAB
+        was_bare = (
+            "failed" not in prev and slab.wrong(prev, langs.get(r["want_id"])) == slab.NO_SLAB
+        )
         photo = s.photos_dir / art["photo"] if art.get("photo") and not pending else None
         if not (photo and photo.exists()):
             photo = photos.download(photos.upgrade(r["img"]), s.photos_dir / f"{r['item_id']}.jpg")

@@ -394,6 +394,8 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
             why = slab.NO_SLAB  # seen bare before, and no PSA slab read since
         on_main = cached.get("main") or _primary(r["item_id"], cached.get("photo") or "")
         if why == slab.NO_SLAB and not on_main:  # a bare gallery scan: read again, main photo too
+            with db.tx() as c:  # held meanwhile
+                _block(c, r["item_id"], slab.NO_SLAB)
             due.append((0 if r["deal"] else 1, "0", r, art))
             continue
         if why:
@@ -405,64 +407,52 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
     calls = 0  # model calls this sweep: a main-photo fallback counts as one too
     for _, _, r, art in due:
         if calls >= MAX_SLAB_READS:
-            pending = bool(r["slab"]) and json.loads(r["slab"]).get("pending")
-            if r["deal"] and (not r["slab"] or pending):  # unread or unfinished: no alert yet
+            prev = json.loads(r["slab"]) if r["slab"] else {}
+            unfinished = prev.get("pending") or _bare(prev, langs.get(r["want_id"]))
+            if r["deal"] and (not r["slab"] or unfinished):  # unread or unfinished: no alert yet
                 db.run(
                     "UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = ?",
                     r["item_id"],
                     r["kind"],
                 )
             continue
-        # A listing still owing its main-photo check goes straight to the main photo.
+        lang = langs.get(r["want_id"])
         prev = json.loads(r["slab"]) if r["slab"] else {}
-        pending = bool(prev.get("pending"))
-        was_bare = _bare(prev, langs.get(r["want_id"]))
+        pending = bool(prev.get("pending"))  # owes a read of the main photo: go straight to it
+        bare = _bare(prev, lang)  # seen as a bare card, with no PSA slab read since
+        main_path = s.photos_dir / f"{r['item_id']}.jpg"
         photo = s.photos_dir / art["photo"] if art.get("photo") and not pending else None
         if not (photo and photo.exists()):
-            photo = photos.download(photos.upgrade(r["img"]), s.photos_dir / f"{r['item_id']}.jpg")
+            photo = photos.download(photos.upgrade(r["img"]), main_path)
         calls += 1
         v = slab.read(s.llm_url, s.llm_key, s.llm_model, photo) if photo else None
-        if v is None:
+        need_main = False
+        if v is not None:
+            v.update(photo=art.get("photo") or "", prompt=slab.PROMPT_V, main=photo == main_path)
+            if slab.wrong(v, lang) == slab.NO_SLAB:
+                bare = True
+                if not v["main"]:  # a gallery scan of the bare card: the main photo decides
+                    need_main = True
+                    again = None
+                    if calls < MAX_SLAB_READS:
+                        calls += 1
+                        main = photos.download(photos.upgrade(r["img"]), main_path)
+                        again = slab.read(s.llm_url, s.llm_key, s.llm_model, main) if main else None
+                    v = None
+                    if again is not None:  # keyed to the same photo choice: not read again
+                        v = {**again, "photo": art.get("photo") or "", "main": True}
+                        v["prompt"] = slab.PROMPT_V
+        if v is None:  # retried next sweep like any failed read
             v = {"failed": dt.datetime.now().isoformat(timespec="seconds")}
-            if pending or was_bare:
-                v["pending"] = True  # stays held until the main photo is read
-                db.run(
-                    "UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = ?",
-                    r["item_id"],
-                    r["kind"],
-                )
-        else:
-            v["photo"] = art.get("photo") or ""
-            v["prompt"] = slab.PROMPT_V
-            if pending:
-                v["main"] = True
-        why = slab.wrong(v, langs.get(r["want_id"])) if "failed" not in v else ""
-        on_main = v.get("main") or _primary(r["item_id"], v.get("photo") or "")
-        if why == slab.NO_SLAB and not on_main:
-            # The photo check picked a gallery scan of the bare card: ask about the main photo.
-            main = None
-            if calls < MAX_SLAB_READS:
-                calls += 1
-                main = photos.download(
-                    photos.upgrade(r["img"]), s.photos_dir / f"{r['item_id']}.jpg"
-                )
-            again = slab.read(s.llm_url, s.llm_key, s.llm_model, main) if main else None
-            if again is None:  # retried next sweep, like any failed read; no alert until then
-                now = dt.datetime.now().isoformat(timespec="seconds")
-                v, why = {"failed": now, "pending": True}, ""
-                db.run(
-                    "UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = ?",
-                    r["item_id"],
-                    r["kind"],
-                )
-            else:  # keyed to the same photo choice, so an unchanged listing is not read again
-                v = {**again, "photo": art.get("photo") or "", "main": True}
-                v["prompt"] = slab.PROMPT_V
-                why = slab.wrong(v, langs.get(r["want_id"]))
-        confirmed = v.get("grader") == "PSA" and v.get("sure")
-        if was_bare and not why and not confirmed and "failed" not in v:
-            v["hold"] = True  # an unsure read doesn't clear a card seen bare
-            why = slab.NO_SLAB
+            if pending or need_main:
+                v["pending"] = True
+        confirmed = v.get("grader") == "PSA" and bool(v.get("sure"))
+        why = slab.wrong(v, lang) if "failed" not in v else ""
+        if bare and not confirmed:
+            v["hold"] = True  # only a confident PSA read clears a card seen bare
+            why = why or slab.NO_SLAB
+        elif v.get("pending"):
+            why = slab.NO_SLAB  # held until its main photo is read
         with db.tx() as c:  # the read and the rejection together: a cached CGC read always drops
             c.execute(
                 "UPDATE listings SET slab = ? WHERE item_id = ? AND kind = ?",
@@ -470,8 +460,7 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
             )
             if why:
                 _block(c, r["item_id"], why)
-            elif was_bare and r["deal"] and confirmed:
-                # only a read that sees the PSA slab lifts the hold
+            elif bare and confirmed and r["deal"]:  # the PSA slab read lifts the hold
                 c.execute(
                     "UPDATE listings SET deal = 1 WHERE item_id = ? AND kind = ?",
                     (r["item_id"], r["kind"]),

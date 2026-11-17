@@ -251,8 +251,9 @@ def test_a_failed_main_photo_read_is_retried(env, monkeypatch):
     db.run("UPDATE listings SET art = ?", '{"verdict": "match", "photo": "111_2.jpg"}')
     (s.photos_dir / "111_2.jpg").write_bytes(b"x" * 2000)
     run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
-    assert sweep.slab_check(db, s, run_id) == 0
-    assert "failed" in db.one("SELECT slab FROM listings WHERE item_id = '111'")["slab"]
+    sweep.slab_check(db, s, run_id)
+    read = db.one("SELECT slab, deal FROM listings WHERE item_id = '111'")
+    assert "failed" in read["slab"] and read["deal"] == 0  # retried next sweep, held till then
 
 
 def test_a_cached_gallery_no_slab_read_checks_the_main_photo(env, monkeypatch):
@@ -379,7 +380,7 @@ def test_a_good_reread_lifts_the_hold_and_a_failed_one_keeps_it(env, monkeypatch
     monkeypatch.setattr(sweep.slab, "read", lambda *a: None)
     sweep.slab_check(db, s, run_id)
     assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0
-    assert '"pending": true' in db.one("SELECT slab FROM listings WHERE item_id = '111'")["slab"]
+    assert '"hold": true' in db.one("SELECT slab FROM listings WHERE item_id = '111'")["slab"]
     db.run("UPDATE listings SET slab = ?, deal = 1 WHERE item_id = '111'", bare)
     monkeypatch.setattr(
         sweep.slab, "read", lambda *a: {"grader": "PSA", "grade": "10", "lang": "", "sure": True}

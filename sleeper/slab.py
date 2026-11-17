@@ -43,7 +43,8 @@ clearly shows a bare card with no slab around it."""
 
 CARD_PROMPT = """This is a photo from an eBay listing of a raw (ungraded) trading card. In which
 language is the card printed? Read the card's own text (name, rules text), not the listing.
-Union Arena cards: a code starting UA (e.g. UA37BT/FMA-1-077) is the Japanese print, UE the English.
+Union Arena cards: a code starting UA (e.g. UA37BT/FMA-1-077) is the Japanese print, one
+starting UE09BT (or another UE set) the English.
 Answer in JSON only:
 
 {"lang": "ENGLISH" | "JAPANESE" | "CHINESE" | "KOREAN" | "OTHER" | "NONE", "sure": true | false}

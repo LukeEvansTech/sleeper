@@ -41,8 +41,52 @@ sure is true only when the label's company is clearly legible, or, for NONE, whe
 clearly shows a bare card with no slab around it."""
 
 
+CARD_PROMPT = """This is a photo from an eBay listing of a raw (ungraded) trading card. In which
+language is the card printed? Read the card's own text (name, rules text), not the listing.
+Union Arena cards: a code starting UA (e.g. UA37BT/FMA-1-077) is the Japanese print, one
+starting UE09BT, UE15BT or another English set code is the English print.
+Answer in JSON only:
+
+{"lang": "ENGLISH" | "JAPANESE" | "CHINESE" | "KOREAN" | "OTHER" | "NONE", "sure": true | false}
+
+NONE: no card text can be read in the photo. sure is true only when the printed text is clearly
+legible."""
+CARD_LANGS = {"ENGLISH", "JAPANESE", "CHINESE", "KOREAN", "OTHER", "NONE"}
+
+
 def read(url: str, key: str, model: str, photo: Path, timeout: int = 90) -> dict | None:
     """{'grader', 'grade', 'sure'} from the photo, or None when the model gave no usable answer."""
+    text = ask(url, key, model, photo, PROMPT, timeout)
+    return parse(text) if text is not None else None
+
+
+def read_card_lang(url: str, key: str, model: str, photo: Path, timeout: int = 90) -> dict | None:
+    """{'card_lang', 'sure'} for a raw card's printed language, or None with no usable answer."""
+    text = ask(url, key, model, photo, CARD_PROMPT, timeout)
+    m = re.search(r"\{.*\}", text or "", re.S)
+    if not m:
+        return None
+    try:
+        v = json.loads(m.group(0))
+    except json.JSONDecodeError:
+        return None
+    lang = str(v.get("lang") or "").strip().upper() if isinstance(v, dict) else ""
+    if lang not in CARD_LANGS:
+        return None
+    return {"card_lang": lang, "sure": v.get("sure") is True}
+
+
+def card_wrong(v: dict | None, lang: str | None = None) -> str:
+    """Why a raw card's printed language rules it out for a want in lang (None: English), or ''."""
+    if not v or not v.get("sure") or v.get("card_lang") in (None, "NONE", "OTHER"):
+        return ""
+    if v["card_lang"].lower() != (lang or "english"):
+        return f"card is {v['card_lang'].title()}"
+    return ""
+
+
+def ask(url: str, key: str, model: str, photo: Path, prompt: str, timeout: int = 90) -> str | None:
+    """The model's text answer about the photo, or None when the call failed."""
     jpeg = as_jpeg(photo)
     if jpeg is None:
         return None
@@ -55,7 +99,7 @@ def read(url: str, key: str, model: str, photo: Path, timeout: int = 90) -> dict
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": PROMPT},
+                        {"type": "text", "text": prompt},
                         {
                             "type": "image_url",
                             "image_url": {"url": f"data:image/jpeg;base64,{data}"},
@@ -72,11 +116,10 @@ def read(url: str, key: str, model: str, photo: Path, timeout: int = 90) -> dict
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:  # nosec B310 - configured endpoint
-            text = json.loads(r.read())["choices"][0]["message"]["content"] or ""
+            return json.loads(r.read())["choices"][0]["message"]["content"] or ""
     except Exception as e:  # pylint: disable=broad-exception-caught
-        log.warning("slab read failed: %s", type(e).__name__)
+        log.warning("vision read failed: %s", type(e).__name__)
         return None
-    return parse(text)
 
 
 def as_jpeg(photo: Path) -> bytes | None:

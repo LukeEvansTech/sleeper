@@ -569,3 +569,13 @@ def test_a_bare_card_sold_as_psa_10_adds_no_comp(db):
     outcomes.check(db, FakeAPI({"1": item()}), NOW)
     assert outcome(db, "1")["status"] == "sold"
     assert db.one("SELECT count(*) AS n FROM sold")["n"] == 0
+
+
+def test_a_card_in_another_language_adds_no_comp(db):
+    listing(db, "1")
+    db.run(
+        "UPDATE listings SET slab = ? WHERE item_id = '1'",
+        '{"card_lang": "JAPANESE", "sure": true, "photo": ""}',
+    )
+    outcomes.check(db, FakeAPI({"1": item()}), NOW)
+    assert db.one("SELECT count(*) AS n FROM sold")["n"] == 0

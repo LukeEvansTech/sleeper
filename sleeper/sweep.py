@@ -360,8 +360,8 @@ def _block(c: Any, item_id: str, why: str) -> None:
 
 
 def lang_check(db: DB, s: Settings, run_id: int) -> int:
-    """Read the printed language of each raw deal's card; drop one in a language the want is not
-    in (a Japanese Envy titled with no language, 2026-11-17). Returns how many were dropped.
+    """Read the printed language of each raw deal's card; hold one in a language the want is not
+    in (a Japanese Envy titled with no language, 2026-11-17). Returns how many were held.
 
     Each listing is read once per photo; a deal over the per-sweep limit waits, held, for the next
     sweep. A failed read is not held: an LLM outage must not stop alerts.
@@ -419,9 +419,10 @@ def lang_check(db: DB, s: Settings, run_id: int) -> int:
                 r["item_id"],
             )
         why = slab.card_wrong(v, langs.get(r["want_id"]))
-        if why:
-            with db.tx() as c:
-                _block(c, r["item_id"], why)
+        if why:  # held, not blocked: a want in the card's own language may still take it
+            db.run(
+                "UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = 'raw'", r["item_id"]
+            )
             dropped += 1
             log.info("listing %s dropped: %s", r["item_id"], why)
     return dropped

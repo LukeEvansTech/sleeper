@@ -42,9 +42,11 @@ def test_a_japanese_raw_card_for_an_english_want_is_dropped(env, monkeypatch):
         sweep.slab, "read_card_lang", lambda *a: {"card_lang": "JAPANESE", "sure": True}
     )
     assert sweep.lang_check(db, s, run_id(db)) == 1
-    assert db.one("SELECT reason FROM blocked WHERE item_id = '444'")["reason"] == (
-        "card is Japanese"
-    )
+    row = db.one("SELECT active, deal FROM listings WHERE item_id = '444' AND kind = 'raw'")
+    assert (row["active"], row["deal"]) == (1, 0)  # held off deals, not blocked for every want
+    db.run("UPDATE listings SET deal = 1 WHERE kind = 'raw'")  # next sweep's rating
+    monkeypatch.setattr(sweep.slab, "read_card_lang", lambda *a: pytest.fail("read again"))
+    assert sweep.lang_check(db, s, run_id(db)) == 1
 
 
 def test_an_english_card_stays_and_is_read_once(env, monkeypatch):

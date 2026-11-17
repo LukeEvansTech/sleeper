@@ -18,6 +18,7 @@ A want is a dict (stored as JSON in the wants table). Keys, all optional except 
     pop       {"term": ..., "row": regex} picks this card's PSA pop rows
     lang      "japanese" or "chinese": a print in that language, so titles and sellers naming it
               count, and titles naming another language (English included) don't
+    raw_caution  a warning shown on every raw listing of the want (e.g. fakes of it are sold)
 """
 
 from __future__ import annotations
@@ -178,6 +179,11 @@ def searches(w: dict) -> list[tuple[str, str]]:
     if w.get("raw", True):
         out.append(("raw", f"union arena {ua['raw']} {name} -psa -bgs -cgc -tag"))
     return out
+
+
+def caution(w: dict, kind: str) -> str:
+    """The want's warning for a raw listing, or "" (a PSA slab has been checked by PSA)."""
+    return str(w.get("raw_caution") or "").strip() if kind == "raw" else ""
 
 
 def search_url(q: str, sold: bool = False) -> str:

@@ -274,3 +274,10 @@ def test_stated_stars_ignores_generic_art_words():
 def test_spaced_serial_is_not_a_card_number():
     assert match.BARE_NO.findall("Union Arena Edward Elric 3 Star Serial #001 /250 PSA 10") == []
     assert match.BARE_NO.findall("Union Arena Lanfan (023) SR*") == ["023"]
+
+
+def test_caution_is_for_raw_listings_only():
+    w = {"raw_caution": " Proxies are sold. "}
+    assert match.caution(w, "raw") == "Proxies are sold."
+    assert match.caution(w, "psa") == ""
+    assert match.caution({}, "raw") == ""

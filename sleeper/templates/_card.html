@@ -10,6 +10,8 @@
     <span class="meta"><span>{{ r.want.set }}</span><span>{{ 'PSA 10' if r.kind == 'psa' else 'raw' }}{% if r.star and r.star != '-' %} {{ r.star | star }}{% endif %}</span></span>
     <span class="grade"><span class="price">{{ r.v.total | money }}</span>{% if not ended %}<span class="rating">{{ r.v.rating }}</span>{% endif %}</span>
   </div>
+  {% set fake_risk = caution(r.want, r.kind) %}
+  {% if fake_risk %}<p class="caution"><b>Fake risk</b> {{ fake_risk }}</p>{% endif %}
   {% if not ended %}{% set v = r.v %}{% set big = false %}{% include "_meter.html" %}{% endif %}
   <div class="foot-row">
     {% if r.cap %}<span class="num">ceiling {{ r.cap | money }}</span>{% endif %}

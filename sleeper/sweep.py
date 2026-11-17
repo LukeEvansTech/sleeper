@@ -336,6 +336,13 @@ def _slab_due(r: Any, photo_name: str) -> str:
     return "1" if "lang" not in v else "~"  # read before labels were checked for a language
 
 
+def _bare(read: dict, lang: str | None) -> bool:
+    """Has this listing been seen as a bare card, with no PSA slab read since?"""
+    return bool(read.get("hold")) or (
+        "failed" not in read and slab.wrong(read, lang) == slab.NO_SLAB
+    )
+
+
 def _primary(item_id: str, photo_name: str) -> bool:
     """Was this the listing's main photo? Gallery photos are saved as <item>_<n>.jpg."""
     return photo_name in ("", f"{item_id}.jpg")
@@ -375,7 +382,7 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
         key = _slab_due(r, art.get("photo") or "")
         if key != "~":
             prev = json.loads(r["slab"]) if r["slab"] else {}
-            if "failed" not in prev and slab.wrong(prev, langs.get(r["want_id"])) == slab.NO_SLAB:
+            if _bare(prev, langs.get(r["want_id"])):
                 with db.tx() as c:  # a known bare card stays held until a new read clears it
                     _block(c, r["item_id"], slab.NO_SLAB)
             due.append((0 if r["deal"] else 1, key, r, art))
@@ -383,6 +390,8 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
         # A read kept from an earlier sweep still faces today's rules (a cached NONE, say).
         cached = json.loads(r["slab"])
         why = slab.wrong(cached, langs.get(r["want_id"]))
+        if not why and cached.get("hold"):
+            why = slab.NO_SLAB  # seen bare before, and no PSA slab read since
         on_main = cached.get("main") or _primary(r["item_id"], cached.get("photo") or "")
         if why == slab.NO_SLAB and not on_main:  # a bare gallery scan: read again, main photo too
             due.append((0 if r["deal"] else 1, "0", r, art))
@@ -407,9 +416,7 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
         # A listing still owing its main-photo check goes straight to the main photo.
         prev = json.loads(r["slab"]) if r["slab"] else {}
         pending = bool(prev.get("pending"))
-        was_bare = (
-            "failed" not in prev and slab.wrong(prev, langs.get(r["want_id"])) == slab.NO_SLAB
-        )
+        was_bare = _bare(prev, langs.get(r["want_id"]))
         photo = s.photos_dir / art["photo"] if art.get("photo") and not pending else None
         if not (photo and photo.exists()):
             photo = photos.download(photos.upgrade(r["img"]), s.photos_dir / f"{r['item_id']}.jpg")
@@ -452,6 +459,10 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
                 v = {**again, "photo": art.get("photo") or "", "main": True}
                 v["prompt"] = slab.PROMPT_V
                 why = slab.wrong(v, langs.get(r["want_id"]))
+        confirmed = v.get("grader") == "PSA" and v.get("sure")
+        if was_bare and not why and not confirmed and "failed" not in v:
+            v["hold"] = True  # an unsure read doesn't clear a card seen bare
+            why = slab.NO_SLAB
         with db.tx() as c:  # the read and the rejection together: a cached CGC read always drops
             c.execute(
                 "UPDATE listings SET slab = ? WHERE item_id = ? AND kind = ?",
@@ -459,7 +470,7 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
             )
             if why:
                 _block(c, r["item_id"], why)
-            elif was_bare and r["deal"] and v.get("grader") == "PSA" and v.get("sure"):
+            elif was_bare and r["deal"] and confirmed:
                 # only a read that sees the PSA slab lifts the hold
                 c.execute(
                     "UPDATE listings SET deal = 1 WHERE item_id = ? AND kind = ?",

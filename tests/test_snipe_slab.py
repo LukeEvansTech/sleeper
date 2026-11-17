@@ -386,3 +386,22 @@ def test_a_good_reread_lifts_the_hold_and_a_failed_one_keeps_it(env, monkeypatch
     )
     sweep.slab_check(db, s, run_id)
     assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 1
+
+
+def test_an_unsure_reread_keeps_a_bare_card_held(env, monkeypatch):
+    s, db, _ = env
+    s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
+    bare = '{"grader": "NONE", "grade": "", "lang": "", "sure": true, "photo": "", "prompt": 2}'
+    db.run("UPDATE listings SET art = ? WHERE item_id = '111'", '{"photo": "111.jpg"}')
+    db.run("UPDATE listings SET slab = ?, deal = 1 WHERE item_id = '111'", bare)
+    (s.photos_dir / "111.jpg").write_bytes(b"x" * 2000)
+    monkeypatch.setattr(
+        sweep.slab, "read", lambda *a: {"grader": "NONE", "grade": "", "lang": "", "sure": False}
+    )
+    run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
+    sweep.slab_check(db, s, run_id)
+    assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0
+    db.run("UPDATE listings SET deal = 1 WHERE item_id = '111'")  # next sweep's store()
+    monkeypatch.setattr(sweep.slab, "read", lambda *a: pytest.fail("cached read re-read"))
+    sweep.slab_check(db, s, run_id)
+    assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0

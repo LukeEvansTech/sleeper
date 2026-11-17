@@ -373,7 +373,8 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
         # A read kept from an earlier sweep still faces today's rules (a cached NONE, say).
         cached = json.loads(r["slab"])
         why = slab.wrong(cached, langs.get(r["want_id"]))
-        if why == slab.NO_SLAB and not _primary(r["item_id"], cached.get("photo") or ""):
+        on_main = cached.get("main") or _primary(r["item_id"], cached.get("photo") or "")
+        if why == slab.NO_SLAB and not on_main:
             why = ""  # a bare scan from the gallery: the slab may be in another photo
         if why:
             with db.tx() as c:
@@ -403,10 +404,10 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
             # The photo check picked a gallery scan of the bare card: ask about the main photo.
             main = photos.download(photos.upgrade(r["img"]), s.photos_dir / f"{r['item_id']}.jpg")
             again = slab.read(s.llm_url, s.llm_key, s.llm_model, main) if main else None
-            if again is None:
-                why = ""
-            else:
-                v = {**again, "photo": ""}
+            if again is None:  # retried next sweep, like any failed read
+                v, why = {"failed": dt.datetime.now().isoformat(timespec="seconds")}, ""
+            else:  # keyed to the same photo choice, so an unchanged listing is not read again
+                v = {**again, "photo": art.get("photo") or "", "main": True}
                 why = slab.wrong(v, langs.get(r["want_id"]))
         with db.tx() as c:  # the read and the rejection together: a cached CGC read always drops
             c.execute(

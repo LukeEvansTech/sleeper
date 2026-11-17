@@ -237,3 +237,19 @@ def test_a_bare_gallery_scan_is_checked_against_the_main_photo(env, monkeypatch)
     run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
     assert sweep.slab_check(db, s, run_id) == 0
     assert db.one("SELECT active FROM listings WHERE item_id = '111'")["active"] == 1
+    monkeypatch.setattr(sweep.slab, "read", lambda *a: pytest.fail("unchanged photo re-read"))
+    assert sweep.slab_check(db, s, run_id) == 0
+
+
+def test_a_failed_main_photo_read_is_retried(env, monkeypatch):
+    s, db, _ = env
+    s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
+    monkeypatch.setattr(sweep.photos, "download", lambda _src, _dest: None)
+    monkeypatch.setattr(
+        sweep.slab, "read", lambda *a: {"grader": "NONE", "grade": "", "lang": "", "sure": True}
+    )
+    db.run("UPDATE listings SET art = ?", '{"verdict": "match", "photo": "111_2.jpg"}')
+    (s.photos_dir / "111_2.jpg").write_bytes(b"x" * 2000)
+    run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
+    assert sweep.slab_check(db, s, run_id) == 0
+    assert "failed" in db.one("SELECT slab FROM listings WHERE item_id = '111'")["slab"]

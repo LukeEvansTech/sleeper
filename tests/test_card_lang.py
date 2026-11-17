@@ -98,3 +98,14 @@ def test_a_failed_read_over_the_limit_is_not_held(env, monkeypatch):
     monkeypatch.setattr(sweep, "MAX_LANG_READS", 0)
     sweep.lang_check(db, s, run_id(db))
     assert db.one("SELECT deal FROM listings WHERE item_id = '444' AND kind = 'raw'")["deal"] == 1
+
+
+def test_a_known_wrong_language_stays_held_when_a_reread_fails(env, monkeypatch):
+    s, db = env
+    db.run(
+        "UPDATE listings SET slab = ? WHERE kind = 'raw'",
+        '{"card_lang": "JAPANESE", "sure": true, "photo": "old.jpg"}',
+    )
+    monkeypatch.setattr(sweep.slab, "read_card_lang", lambda *a: None)
+    assert sweep.lang_check(db, s, run_id(db)) == 1
+    assert db.one("SELECT deal FROM listings WHERE item_id = '444' AND kind = 'raw'")["deal"] == 0

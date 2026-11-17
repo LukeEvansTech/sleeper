@@ -375,27 +375,28 @@ def lang_check(db: DB, s: Settings, run_id: int) -> int:
     )
     langs = {w["_id"]: w.get("lang") for w in db.wants()}
 
+    def done(prev: dict, name: str) -> bool:  # read successfully, of the photo in use now
+        return "card_lang" in prev and "card_failed" not in prev and prev.get("photo") == name
+
     def order(r: Any) -> str:  # read ones first (free), then never tried, then failed oldest first
         prev = json.loads(r["slab"]) if r["slab"] else {}
         name = (json.loads(r["art"]) if r["art"] else {}).get("photo") or ""
-        if "card_lang" in prev and prev.get("photo") == name:
-            return " "
-        return prev.get("card_failed", "")
+        return " " if done(prev, name) else prev.get("card_failed", "")
 
     dropped = calls = 0
     for r in sorted(rows, key=order):
         art = json.loads(r["art"]) if r["art"] else {}
         prev = json.loads(r["slab"]) if r["slab"] else {}
         name = art.get("photo") or ""
-        if "card_lang" in prev and prev.get("photo") == name:
-            v = prev  # read before, same photo
+        v = prev  # a confident earlier verdict stands until a new read replaces it
+        if done(prev, name):
+            pass
         elif calls >= MAX_LANG_READS:
-            if "card_failed" in prev:
-                continue  # tried and failed before: fail open, like an LLM outage
-            db.run(  # never read: no alert until it is
-                "UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = 'raw'", r["item_id"]
-            )
-            continue
+            if not prev:  # never read: no alert until it is; a failed read fails open
+                db.run(
+                    "UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = 'raw'", r["item_id"]
+                )
+                continue
         else:
             photo = s.photos_dir / name if name else None
             if not (photo and photo.exists()):
@@ -406,13 +407,9 @@ def lang_check(db: DB, s: Settings, run_id: int) -> int:
             got = slab.read_card_lang(s.llm_url, s.llm_key, s.llm_model, photo) if photo else None
             if got is None:  # retried next sweep, after listings never tried
                 now = dt.datetime.now().isoformat(timespec="seconds")
-                db.run(
-                    "UPDATE listings SET slab = ? WHERE item_id = ? AND kind = 'raw'",
-                    json.dumps({"card_failed": now, "photo": name}),
-                    r["item_id"],
-                )
-                continue
-            v = {**got, "photo": name}
+                v = {**prev, "card_failed": now, "photo": name}
+            else:
+                v = {**got, "photo": name}
             db.run(
                 "UPDATE listings SET slab = ? WHERE item_id = ? AND kind = 'raw'",
                 json.dumps(v),

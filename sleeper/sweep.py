@@ -374,8 +374,16 @@ def lang_check(db: DB, s: Settings, run_id: int) -> int:
         run_id,
     )
     langs = {w["_id"]: w.get("lang") for w in db.wants()}
+
+    def order(r: Any) -> str:  # read ones first (free), then never tried, then failed oldest first
+        prev = json.loads(r["slab"]) if r["slab"] else {}
+        name = (json.loads(r["art"]) if r["art"] else {}).get("photo") or ""
+        if "card_lang" in prev and prev.get("photo") == name:
+            return " "
+        return prev.get("card_failed", "")
+
     dropped = calls = 0
-    for r in rows:
+    for r in sorted(rows, key=order):
         art = json.loads(r["art"]) if r["art"] else {}
         prev = json.loads(r["slab"]) if r["slab"] else {}
         name = art.get("photo") or ""
@@ -394,8 +402,14 @@ def lang_check(db: DB, s: Settings, run_id: int) -> int:
                 )
             calls += 1
             got = slab.read_card_lang(s.llm_url, s.llm_key, s.llm_model, photo) if photo else None
-            if got is None:
-                continue  # retried next sweep
+            if got is None:  # retried next sweep, after listings never tried
+                now = dt.datetime.now().isoformat(timespec="seconds")
+                db.run(
+                    "UPDATE listings SET slab = ? WHERE item_id = ? AND kind = 'raw'",
+                    json.dumps({"card_failed": now, "photo": name}),
+                    r["item_id"],
+                )
+                continue
             v = {**got, "photo": name}
             db.run(
                 "UPDATE listings SET slab = ? WHERE item_id = ? AND kind = 'raw'",

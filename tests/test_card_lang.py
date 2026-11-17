@@ -72,3 +72,16 @@ def test_card_language_verdicts():
     assert slab.card_wrong({"card_lang": "JAPANESE", "sure": False}) == ""
     assert slab.card_wrong({"card_lang": "NONE", "sure": True}) == ""
     assert slab.card_wrong({"card_lang": "ENGLISH", "sure": True}, "chinese") == "card is English"
+
+
+def test_a_failed_read_is_noted_and_retried_after_unread_listings(env, monkeypatch):
+    s, db = env
+    monkeypatch.setattr(sweep.slab, "read_card_lang", lambda *a: None)
+    sweep.lang_check(db, s, run_id(db))
+    assert "card_failed" in db.one("SELECT slab FROM listings WHERE kind = 'raw'")["slab"]
+    db.run("UPDATE listings SET deal = 1 WHERE kind = 'raw'")
+    monkeypatch.setattr(
+        sweep.slab, "read_card_lang", lambda *a: {"card_lang": "ENGLISH", "sure": True}
+    )
+    assert sweep.lang_check(db, s, run_id(db)) == 0
+    assert "card_lang" in db.one("SELECT slab FROM listings WHERE kind = 'raw'")["slab"]

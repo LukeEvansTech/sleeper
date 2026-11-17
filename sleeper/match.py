@@ -53,7 +53,7 @@ LANG_PLACES = {"japanese": ("Japan",), "chinese": ("China", "Hong Kong", "Taiwan
 # ("TAG 9", "TAG GEM MINT 10"), never before a card number ("Ace 10-131S").
 # A raw card sold on hope: "PSA 10 contender", "potential PSA 10", "PSA 10?".
 PSA_HOPE = re.compile(
-    r"psa ?10\s*(?:contender|candidate|potential|worthy|\?)"
+    r"psa ?10\s*(?:(?:contender|candidate|potential|worthy)\b|\?)"
     r"|(?:potential|possible|future|could be|should be)\s+(?:a\s+)?psa ?10",
     re.I,
 )

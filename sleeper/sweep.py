@@ -459,7 +459,8 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
             )
             if why:
                 _block(c, r["item_id"], why)
-            elif was_bare and r["deal"] and "failed" not in v:  # the new read lifts the hold
+            elif was_bare and r["deal"] and v.get("grader") == "PSA" and v.get("sure"):
+                # only a read that sees the PSA slab lifts the hold
                 c.execute(
                     "UPDATE listings SET deal = 1 WHERE item_id = ? AND kind = ?",
                     (r["item_id"], r["kind"]),

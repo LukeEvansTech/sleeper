@@ -420,9 +420,7 @@ def lang_check(db: DB, s: Settings, run_id: int) -> int:
             )
         why = slab.card_wrong(v, langs.get(r["want_id"]))
         if why:  # held, not blocked: a want in the card's own language may still take it
-            db.run(
-                "UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = 'raw'", r["item_id"]
-            )
+            db.run("UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = 'raw'", r["item_id"])
             dropped += 1
             log.info("listing %s dropped: %s", r["item_id"], why)
     return dropped

@@ -324,3 +324,31 @@ def test_none_reads_from_the_old_prompt_are_read_again():
     due = sweep._slab_due  # pylint: disable=protected-access
     assert due(old, "") == "0"
     assert due(new, "") == "~"
+
+
+def test_a_pending_check_goes_straight_to_the_main_photo(env, monkeypatch):
+    s, db, _ = env
+    s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
+    seen = []
+
+    def read(_url, _key, _model, photo):
+        seen.append(photo.name)
+        return {"grader": "PSA", "grade": "10", "lang": "", "sure": True}
+
+    monkeypatch.setattr(sweep.photos, "download", lambda _src, dest: dest)
+    monkeypatch.setattr(sweep.slab, "read", read)
+    db.run("UPDATE listings SET art = NULL")
+    db.run("UPDATE listings SET art = ? WHERE item_id = '111'", '{"photo": "111_2.jpg"}')
+    db.run(
+        "UPDATE listings SET slab = ? WHERE item_id = '111'",
+        '{"failed": "2026-11-17T00:00:00", "pending": true}',
+    )
+    db.run(
+        "UPDATE listings SET slab = ? WHERE item_id = '333'",
+        '{"grader": "PSA", "grade": "10", "lang": "", "sure": true, "photo": ""}',
+    )
+    (s.photos_dir / "111_2.jpg").write_bytes(b"x" * 2000)
+    run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
+    assert sweep.slab_check(db, s, run_id) == 0
+    assert seen == ["111.jpg"]
+    assert '"main": true' in db.one("SELECT slab FROM listings WHERE item_id = '111'")["slab"]

@@ -396,15 +396,17 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
                     r["kind"],
                 )
             continue
-        photo = s.photos_dir / art["photo"] if art.get("photo") else None
+        # A listing still owing its main-photo check goes straight to the main photo.
+        pending = bool(r["slab"]) and bool(json.loads(r["slab"]).get("pending"))
+        photo = s.photos_dir / art["photo"] if art.get("photo") and not pending else None
         if not (photo and photo.exists()):
             photo = photos.download(photos.upgrade(r["img"]), s.photos_dir / f"{r['item_id']}.jpg")
         calls += 1
         v = slab.read(s.llm_url, s.llm_key, s.llm_model, photo) if photo else None
         if v is None:
             v = {"failed": dt.datetime.now().isoformat(timespec="seconds")}
-            if r["slab"] and json.loads(r["slab"]).get("pending"):
-                v["pending"] = True  # still owes its main-photo check: stays held
+            if pending:
+                v["pending"] = True  # stays held until the main photo is read
                 db.run(
                     "UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = ?",
                     r["item_id"],
@@ -413,8 +415,11 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
         else:
             v["photo"] = art.get("photo") or ""
             v["prompt"] = slab.PROMPT_V
+            if pending:
+                v["main"] = True
         why = slab.wrong(v, langs.get(r["want_id"])) if "failed" not in v else ""
-        if why == slab.NO_SLAB and not _primary(r["item_id"], v.get("photo") or ""):
+        on_main = v.get("main") or _primary(r["item_id"], v.get("photo") or "")
+        if why == slab.NO_SLAB and not on_main:
             # The photo check picked a gallery scan of the bare card: ask about the main photo.
             main = None
             if calls < MAX_SLAB_READS:

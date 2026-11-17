@@ -309,6 +309,13 @@ def test_main_photo_fallbacks_count_against_the_read_limit(env, monkeypatch):
     monkeypatch.setattr(sweep, "MAX_SLAB_READS", 0)
     sweep.slab_check(db, s, run_id)
     assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0
+    # and a failed retry of the gallery photo keeps it held too
+    db.run("UPDATE listings SET deal = 1 WHERE item_id = '111'")
+    monkeypatch.setattr(sweep, "MAX_SLAB_READS", 5)
+    monkeypatch.setattr(sweep.slab, "read", lambda *a: None)
+    sweep.slab_check(db, s, run_id)
+    assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0
+    assert '"pending": true' in db.one("SELECT slab FROM listings WHERE item_id = '111'")["slab"]
 
 
 def test_none_reads_from_the_old_prompt_are_read_again():

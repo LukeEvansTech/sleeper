@@ -403,6 +403,13 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
         v = slab.read(s.llm_url, s.llm_key, s.llm_model, photo) if photo else None
         if v is None:
             v = {"failed": dt.datetime.now().isoformat(timespec="seconds")}
+            if r["slab"] and json.loads(r["slab"]).get("pending"):
+                v["pending"] = True  # still owes its main-photo check: stays held
+                db.run(
+                    "UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = ?",
+                    r["item_id"],
+                    r["kind"],
+                )
         else:
             v["photo"] = art.get("photo") or ""
             v["prompt"] = slab.PROMPT_V

@@ -374,6 +374,10 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
         art = json.loads(r["art"]) if r["art"] else {}
         key = _slab_due(r, art.get("photo") or "")
         if key != "~":
+            prev = json.loads(r["slab"]) if r["slab"] else {}
+            if "failed" not in prev and slab.wrong(prev, langs.get(r["want_id"])) == slab.NO_SLAB:
+                with db.tx() as c:  # a known bare card stays held until a new read clears it
+                    _block(c, r["item_id"], slab.NO_SLAB)
             due.append((0 if r["deal"] else 1, key, r, art))
             continue
         # A read kept from an earlier sweep still faces today's rules (a cached NONE, say).

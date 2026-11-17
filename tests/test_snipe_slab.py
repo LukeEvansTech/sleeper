@@ -352,3 +352,17 @@ def test_a_pending_check_goes_straight_to_the_main_photo(env, monkeypatch):
     assert sweep.slab_check(db, s, run_id) == 0
     assert seen == ["111.jpg"]
     assert '"main": true' in db.one("SELECT slab FROM listings WHERE item_id = '111'")["slab"]
+
+
+def test_a_known_bare_card_stays_held_while_its_new_photo_waits(env, monkeypatch):
+    s, db, _ = env
+    s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
+    monkeypatch.setattr(sweep, "MAX_SLAB_READS", 0)
+    db.run("UPDATE listings SET art = ? WHERE item_id = '111'", '{"photo": "111_3.jpg"}')
+    db.run(
+        "UPDATE listings SET slab = ? WHERE item_id = '111'",
+        '{"grader": "NONE", "grade": "", "lang": "", "sure": true, "photo": "", "prompt": 2}',
+    )
+    run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
+    sweep.slab_check(db, s, run_id)
+    assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0

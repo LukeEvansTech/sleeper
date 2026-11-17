@@ -309,5 +309,6 @@ def test_main_photo_fallbacks_count_against_the_read_limit(env, monkeypatch):
 def test_none_reads_from_the_old_prompt_are_read_again():
     old = {"slab": '{"grader": "NONE", "grade": "", "lang": "", "sure": false, "photo": ""}'}
     new = {"slab": '{"grader": "NONE", "lang": "", "sure": false, "photo": "", "prompt": 2}'}
-    assert sweep._slab_due(old, "") == "0"
-    assert sweep._slab_due(new, "") == "~"
+    due = sweep._slab_due  # pylint: disable=protected-access
+    assert due(old, "") == "0"
+    assert due(new, "") == "~"

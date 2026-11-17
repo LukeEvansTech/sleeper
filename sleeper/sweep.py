@@ -328,6 +328,8 @@ def _slab_due(r: Any, photo_name: str) -> str:
         return ""
     if "failed" in v:
         return v["failed"]
+    if v.get("grader") == "NONE" and v.get("prompt") != slab.PROMPT_V:
+        return "0"  # read before the prompt could say "bare card": read once more
     unsure = not v.get("sure") or v.get("grader") == "NONE" or not slab.grade_of(v)
     if unsure and v.get("photo") != photo_name:
         return "0"
@@ -402,6 +404,7 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
             v = {"failed": dt.datetime.now().isoformat(timespec="seconds")}
         else:
             v["photo"] = art.get("photo") or ""
+            v["prompt"] = slab.PROMPT_V
         why = slab.wrong(v, langs.get(r["want_id"])) if "failed" not in v else ""
         if why == slab.NO_SLAB and not _primary(r["item_id"], v.get("photo") or ""):
             # The photo check picked a gallery scan of the bare card: ask about the main photo.
@@ -412,10 +415,16 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
                     photos.upgrade(r["img"]), s.photos_dir / f"{r['item_id']}.jpg"
                 )
             again = slab.read(s.llm_url, s.llm_key, s.llm_model, main) if main else None
-            if again is None:  # retried next sweep, like any failed read
+            if again is None:  # retried next sweep, like any failed read; no alert until then
                 v, why = {"failed": dt.datetime.now().isoformat(timespec="seconds")}, ""
+                db.run(
+                    "UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = ?",
+                    r["item_id"],
+                    r["kind"],
+                )
             else:  # keyed to the same photo choice, so an unchanged listing is not read again
                 v = {**again, "photo": art.get("photo") or "", "main": True}
+                v["prompt"] = slab.PROMPT_V
                 why = slab.wrong(v, langs.get(r["want_id"]))
         with db.tx() as c:  # the read and the rejection together: a cached CGC read always drops
             c.execute(

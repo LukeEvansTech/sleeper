@@ -22,6 +22,7 @@ GRADERS = {"PSA", "CGC", "BGS", "SGC", "TAG", "ACE", "ARS", "OTHER", "NONE"}
 # (17 Final Fantasy slabs dropped on 2026-11-13). A label naming none of them is inconclusive.
 LANGS = {"JAPANESE", "CHINESE", "KOREAN"}
 NO_SLAB = "no slab in the photo"
+PROMPT_V = 2  # 2: sure may be true for NONE when the photo shows a bare card
 
 PROMPT = """This is a photo from an eBay listing of a graded trading card. Read the grading label on
 the slab (the plastic case) and answer in JSON only:

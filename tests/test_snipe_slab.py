@@ -203,7 +203,7 @@ def test_a_cached_no_slab_read_is_dropped_without_reading_again(env, monkeypatch
     db.run("UPDATE listings SET art = NULL")
     db.run(
         "UPDATE listings SET slab = ? WHERE item_id = '111'",
-        '{"grader": "NONE", "grade": "", "lang": "", "sure": true, "photo": ""}',
+        '{"grader": "NONE", "grade": "", "lang": "", "sure": true, "photo": "", "prompt": 2}',
     )
     db.run(
         "UPDATE listings SET slab = ? WHERE item_id = '333'",
@@ -275,7 +275,7 @@ def test_a_cached_gallery_no_slab_read_checks_the_main_photo(env, monkeypatch):
     db.run("UPDATE listings SET art = ? WHERE item_id = '111'", '{"photo": "111_2.jpg"}')
     db.run(
         "UPDATE listings SET slab = ? WHERE item_id = '111'",
-        '{"grader": "NONE", "grade": "", "lang": "", "sure": true, "photo": "111_2.jpg"}',
+        '{"grader": "NONE", "grade": "", "lang": "", "sure": true, "photo": "111_2.jpg", "prompt": 2}',
     )
     db.run(
         "UPDATE listings SET slab = ? WHERE item_id = '333'",
@@ -303,3 +303,11 @@ def test_main_photo_fallbacks_count_against_the_read_limit(env, monkeypatch):
     run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
     sweep.slab_check(db, s, run_id)
     assert len(calls) == 1
+    assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0  # held
+
+
+def test_none_reads_from_the_old_prompt_are_read_again():
+    old = {"slab": '{"grader": "NONE", "grade": "", "lang": "", "sure": false, "photo": ""}'}
+    new = {"slab": '{"grader": "NONE", "lang": "", "sure": false, "photo": "", "prompt": 2}'}
+    assert sweep._slab_due(old, "") == "0"
+    assert sweep._slab_due(new, "") == "~"

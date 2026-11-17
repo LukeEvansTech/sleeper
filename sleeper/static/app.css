@@ -200,7 +200,40 @@ h2 {
   color: var(--great);
 }
 
-/* A want's raw_caution (fakes of the card are sold), on its raw tiles and deal page. */
+/* A raw tile's chance of a PSA 10: red under 20%, amber under 40%, green from 40%. */
+.gem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  align-items: baseline;
+  margin: 0 12px 8px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.gem-rate {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.gem-low .gem-rate {
+  background: color-mix(in srgb, var(--high) 16%, transparent);
+  color: var(--high);
+}
+
+.gem-mid .gem-rate {
+  background: color-mix(in srgb, var(--fair) 18%, transparent);
+  color: var(--fair);
+}
+
+.gem-high .gem-rate {
+  background: color-mix(in srgb, var(--great) 16%, transparent);
+  color: var(--great);
+}
+
+/* The raw_caution of a want (fakes of the card are sold), on its raw tiles and deal page. */
 .caution {
   margin: 0 12px 8px;
   padding: 6px 10px;

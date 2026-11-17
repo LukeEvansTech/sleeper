@@ -126,8 +126,10 @@ def grade_of(v: dict) -> float | None:
 
 def wrong(v: dict | None, lang: str | None = None) -> str:
     """Why a slab read rules out a PSA 10 listing of a want in lang (None: English), or ''."""
-    if not v or not v["sure"] or v["grader"] == "NONE":
+    if not v or not v["sure"]:
         return ""
+    if v["grader"] == "NONE":
+        return "no slab in the photo"  # a raw card titled "PSA 10" (seen 2026-11-17)
     if v["grader"] != "PSA":
         return f"slab is {v['grader']} {v['grade']}".strip()
     said = v.get("lang") or ""

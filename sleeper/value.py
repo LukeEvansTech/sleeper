@@ -68,10 +68,19 @@ def pop_for(pop: list[dict], w: dict) -> list[dict]:
     return sorted(hits, key=lambda p: -p["total"])
 
 
-def gem_rate(w: dict, star: str, pop_rows: list[dict], set_rates: dict) -> tuple[float | None, str]:
-    """Chance a raw copy grades PSA 10: the card's own pop when 10+ have been graded, else the set's."""
+def card_pop(w: dict, star: str, pop_rows: list[dict]) -> tuple[int, int]:
+    """(PSA 10s, total graded) for this card: its pop rows, else the want's psa_pop when it has more."""
     rows = [p for p in pop_rows if star_of(p["descr"]) == star]
     gems, total = sum(p["gems"] for p in rows), sum(p["total"] for p in rows)
+    typed = w.get("psa_pop") or {}
+    if int(typed.get("total") or 0) > total:
+        gems, total = int(typed.get("gems") or 0), int(typed["total"])
+    return gems, total
+
+
+def gem_rate(w: dict, star: str, pop_rows: list[dict], set_rates: dict) -> tuple[float | None, str]:
+    """Chance a raw copy grades PSA 10: the card's own pop when 10+ have been graded, else the set's."""
+    gems, total = card_pop(w, star, pop_rows)
     if total >= 10:
         return gems / total, f"this card's PSA pop ({gems}/{total})"
     rate = set_rates.get(w.get("set", ""))
@@ -100,6 +109,21 @@ class Verdict:
     # a running auction that usually sells within the ceiling and can still be bid on
     snipeable: bool = False
     limit: float | None = None  # an auction's item-price limit before snipe_bid's odd cents
+    gem: float | None = None  # chance a raw copy grades PSA 10
+    gem_own: bool = False  # gem comes from this card's own pop, not the set average
+    pop: tuple[int, int] | None = None  # (PSA 10s, total graded) for this card
+
+    @property
+    def steal(self) -> bool:
+        """At 40% of market or less, and not a running auction judged on its opening bid."""
+        return self.expected is None and self.market is not None and self.market <= 0.4
+
+    @property
+    def gem_band(self) -> str:
+        """low under 20%, mid under 40%, high from 40%; "" with no rate."""
+        if self.gem is None:
+            return ""
+        return "low" if self.gem < 0.2 else "mid" if self.gem < 0.4 else "high"
 
     @property
     def market(self) -> float | None:
@@ -196,6 +220,7 @@ def assess(
     wid = int(w.get("family") or w["_id"])  # split prints share their card's comps
     ten, raw = cmp.get((wid, "psa", star)), cmp.get((wid, "raw", star))
     rate, rate_src = gem_rate(w, star, pop_rows, set_rates)
+    pop_gems, pop_total = card_pop(w, star, pop_rows)
     reasons: list[str] = []
     ship_txt = (
         "free delivery" if ship == 0 else f"${ship:,.2f} delivery" if ship else "delivery not shown"
@@ -380,4 +405,7 @@ def assess(
         high=same.high if same else None,
         snipeable=snipeable,
         limit=limit,
+        gem=rate,
+        gem_own=pop_total >= 10,
+        pop=(pop_gems, pop_total) if pop_total else None,
     )

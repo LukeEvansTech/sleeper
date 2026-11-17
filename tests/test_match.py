@@ -281,3 +281,14 @@ def test_caution_is_for_raw_listings_only():
     assert match.caution(w, "raw") == "Proxies are sold."
     assert match.caution(w, "psa") == ""
     assert match.caution({}, "raw") == ""
+
+
+def test_psa_10_prospects_are_not_slabs():
+    w = {"set": "PKM", "who": "Hoopa", "q": "hoopa psa 10"}
+    for t in [
+        "Hoopa #155/XY-P Movie Promo Holo 2015 Sealed NM PSA 10 CONTENDER",
+        "Hoopa 155/XY-P potential PSA 10",
+        "Hoopa XY-P 155 PSA 10?",
+    ]:
+        assert not match.keep(w, "psa", t, ""), t
+    assert match.keep(w, "psa", "PSA 10 Hoopa 155/XY-P Movie Promo GEM MINT", "")

@@ -19,6 +19,7 @@ A want is a dict (stored as JSON in the wants table). Keys, all optional except 
     lang      "japanese" or "chinese": a print in that language, so titles and sellers naming it
               count, and titles naming another language (English included) don't
     raw_caution  a warning shown on every raw listing of the want (e.g. fakes of it are sold)
+    psa_pop   {"gems": n, "total": n} typed in from elsewhere, used when the pop rows have fewer
 """
 
 from __future__ import annotations
@@ -50,6 +51,13 @@ LANGS = {
 LANG_PLACES = {"japanese": ("Japan",), "chinese": ("China", "Hong Kong", "Taiwan")}
 # Graders other than PSA. ACE, TAG and ARS are also words, so they count only before a grade
 # ("TAG 9", "TAG GEM MINT 10"), never before a card number ("Ace 10-131S").
+# A raw card sold on hope: "PSA 10 contender", "potential PSA 10", "PSA 10?".
+PSA_HOPE = re.compile(
+    r"psa ?10\s*(?:contender|candidate|potential|ready|quality|worthy|\?)"
+    r"|(?:potential|possible|future|could be|should be)\s+(?:a\s+)?psa ?10",
+    re.I,
+)
+
 OTHER_GRADER = re.compile(
     r"\b(bgs|beckett|cgc|sgc|hga|[a]gs)\b"
     r"|\b(tag|ace|ars)(?:\s+(?:grad\w*|gem|mint|pristine))*\s*\d{1,2}(?:\.5)?\b(?![-/.]\w)",
@@ -236,6 +244,8 @@ def keep(w: dict, kind: str, title: str, text: str) -> bool:
             return False
         if OTHER_GRADER.search(t):
             return False  # PSA only: a CGC, BGS or "TAG 10, PSA 10 equivalent" slab
+        if PSA_HOPE.search(t):
+            return False  # a raw card titled as a PSA 10 prospect, not a slab
         return bool(re.search(r"psa ?10|psa gem", t))
     return not GRADED.search(t) and (bool(w.get("nostar")) or stars(title) != "-")
 

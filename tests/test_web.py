@@ -735,6 +735,7 @@ def test_raw_caution_shows_on_raw_tiles_deal_page_and_alert(env, monkeypatch):
         "max": {"any": 2000},
         "raw_max": 1000,
         "raw_caution": "Proxies of this card are sold.",
+        "psa_pop": {"gems": 1, "total": 27},
     }
     client.post("/api/import", json={"wants": [want]})
     raw = {
@@ -750,4 +751,6 @@ def test_raw_caution_shows_on_raw_tiles_deal_page_and_alert(env, monkeypatch):
     assert "Fake risk: Proxies of this card are sold." in alert[2]
     page = client.get("/deal/333/raw").text
     assert 'class="caution big"' in page and "Proxies of this card are sold." in page
-    assert 'class="caution"' in client.get("/").text
+    home = client.get("/").text
+    assert 'class="caution"' in home
+    assert "gem-low" in home and "4% gem rate" in home and "PSA pop 1/27" in home

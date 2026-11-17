@@ -2,7 +2,7 @@
    tile, so the Gixen link can sit inside it without nesting one link in another. #}
 {# On the Ended page the rating and market meter describe a price that no longer exists, so they go. #}
 {% set ended = r.outcome and show_outcome %}
-<article class="tile{% if not ended %} rating-{{ r.v.rating }}{{ ' steal' if r.v.market and r.v.market <= 0.4 }}{% endif %}">
+<article class="tile{% if not ended %} rating-{{ r.v.rating }}{{ ' steal' if r.v.steal }}{% endif %}">
   <span class="fmt {{ 'fmt-auction' if r.auction else 'fmt-bin' }}">{{ 'Auction' if r.auction else 'Buy it now' }}</span>
   <div class="well"><img loading="lazy" src="{{ r.img | ebay_img(300) }}" alt="" width="300" height="400"></div>
   <div class="label">
@@ -10,6 +10,12 @@
     <span class="meta"><span>{{ r.want.set }}</span><span>{{ 'PSA 10' if r.kind == 'psa' else 'raw' }}{% if r.star and r.star != '-' %} {{ r.star | star }}{% endif %}</span></span>
     <span class="grade"><span class="price">{{ r.v.total | money }}</span>{% if not ended %}<span class="rating">{{ r.v.rating }}</span>{% endif %}</span>
   </div>
+  {% if r.kind == 'raw' and not ended and r.v.gem is not none %}
+  <p class="gem gem-{{ r.v.gem_band }}" title="Chance a raw copy grades PSA 10">
+    <span class="gem-rate">{{ r.v.gem | pct }} gem rate</span>
+    <span>{% if r.v.pop %}PSA pop {{ r.v.pop[0] }}/{{ r.v.pop[1] }}{% endif %}{% if not r.v.gem_own %}{{ ', ' if r.v.pop }}set average{% endif %}</span>
+  </p>
+  {% endif %}
   {% set fake_risk = caution(r.want, r.kind) %}
   {% if fake_risk %}<p class="caution"><b>Fake risk</b> {{ fake_risk }}</p>{% endif %}
   {% if not ended %}{% set v = r.v %}{% set big = false %}{% include "_meter.html" %}{% endif %}

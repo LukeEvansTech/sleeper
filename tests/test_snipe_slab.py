@@ -61,7 +61,11 @@ def test_slab_reads_rule_out_other_graders_and_lower_grades():
     )
     assert slab.wrong(slab.parse('{"grader": "PSA", "grade": "10", "sure": true}')) == ""
     assert slab.wrong(slab.parse('{"grader": "CGC", "grade": "9", "sure": false}')) == ""
-    assert slab.wrong(slab.parse('{"grader": "NONE", "grade": "", "sure": true}')) == ""
+    assert (
+        slab.wrong(slab.parse('{"grader": "NONE", "grade": "", "sure": true}'))
+        == "no slab in the photo"
+    )
+    assert slab.wrong(slab.parse('{"grader": "NONE", "grade": "", "sure": false}')) == ""
     assert slab.wrong(slab.parse('{"grader": "PSA", "grade": "10.00", "sure": true}')) == ""
     assert slab.wrong(slab.parse('{"grader": "PSA", "grade": "unreadable", "sure": true}')) == ""
     assert slab.parse("no idea") is None

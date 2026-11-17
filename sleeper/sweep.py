@@ -547,7 +547,7 @@ def alert(db: DB, s: Settings, run_id: int, wants: dict[int, dict]) -> tuple[int
         tag = {"match": "art ✓", "unclear": "art ?"}.get(art.get("verdict", ""), "")
         drop = " (price drop)" if r["alerted_usd"] else ""
         title = f"{v.rating.upper()}: {v.headline}{drop}"
-        warn = match.caution(w, r["kind"])
+        warn = match.caution(wants.get(r["want_id"]) or {}, r["kind"])
         body = " · ".join(
             x
             for x in [

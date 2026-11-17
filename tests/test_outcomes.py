@@ -558,3 +558,14 @@ def test_a_late_sighting_still_needs_the_opening_price_covered(web):
     outcomes.check(d, FakeAPI({"1": item(status="IN_STOCK", sold=0, bids=0)}), NOW)
     html = client.get("/ended").text
     assert "Snipe would have lost" in html and "would probably have won" not in html
+
+
+def test_a_bare_card_sold_as_psa_10_adds_no_comp(db):
+    listing(db, "1")
+    db.run(
+        "UPDATE listings SET slab = ? WHERE item_id = '1'",
+        '{"grader": "NONE", "grade": "", "lang": "", "sure": true, "photo": ""}',
+    )
+    outcomes.check(db, FakeAPI({"1": item()}), NOW)
+    assert outcome(db, "1")["status"] == "sold"
+    assert db.one("SELECT count(*) AS n FROM sold")["n"] == 0

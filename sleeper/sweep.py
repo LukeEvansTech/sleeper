@@ -388,7 +388,8 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
     calls = 0  # model calls this sweep: a main-photo fallback counts as one too
     for _, _, r, art in due:
         if calls >= MAX_SLAB_READS:
-            if r["deal"] and not r["slab"]:  # never read: no alert until it is
+            pending = bool(r["slab"]) and json.loads(r["slab"]).get("pending")
+            if r["deal"] and (not r["slab"] or pending):  # unread or unfinished: no alert yet
                 db.run(
                     "UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = ?",
                     r["item_id"],
@@ -416,7 +417,8 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
                 )
             again = slab.read(s.llm_url, s.llm_key, s.llm_model, main) if main else None
             if again is None:  # retried next sweep, like any failed read; no alert until then
-                v, why = {"failed": dt.datetime.now().isoformat(timespec="seconds")}, ""
+                now = dt.datetime.now().isoformat(timespec="seconds")
+                v, why = {"failed": now, "pending": True}, ""
                 db.run(
                     "UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = ?",
                     r["item_id"],

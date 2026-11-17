@@ -304,6 +304,11 @@ def test_main_photo_fallbacks_count_against_the_read_limit(env, monkeypatch):
     sweep.slab_check(db, s, run_id)
     assert len(calls) == 1
     assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0  # held
+    # next sweep: the deal is back, the budget goes elsewhere, and it stays held
+    db.run("UPDATE listings SET deal = 1 WHERE item_id = '111'")
+    monkeypatch.setattr(sweep, "MAX_SLAB_READS", 0)
+    sweep.slab_check(db, s, run_id)
+    assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0
 
 
 def test_none_reads_from_the_old_prompt_are_read_again():

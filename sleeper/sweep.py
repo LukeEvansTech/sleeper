@@ -342,7 +342,11 @@ def _primary(item_id: str, photo_name: str) -> bool:
 
 
 def _block(c: Any, item_id: str, why: str) -> None:
-    """Block a listing for good and take it off the live and deal lists, inside the caller's tx."""
+    """Block a listing for good and take it off the live and deal lists, inside the caller's tx.
+    A photo with no slab only holds the deal: the slab may be in a photo that was not read."""
+    if why == slab.NO_SLAB:
+        c.execute("UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = 'psa'", (item_id,))
+        return
     c.execute("INSERT OR REPLACE INTO blocked (item_id, reason) VALUES (?, ?)", (item_id, why))
     c.execute("UPDATE listings SET active = 0, deal = 0 WHERE item_id = ?", (item_id,))
 

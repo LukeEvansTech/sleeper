@@ -211,10 +211,10 @@ def test_a_cached_no_slab_read_is_dropped_without_reading_again(env, monkeypatch
     )
     run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
     assert sweep.slab_check(db, s, run_id) == 1
-    assert db.one("SELECT reason FROM blocked WHERE item_id = '111'")["reason"] == (
-        "no slab in the photo"
-    )
-    assert db.one("SELECT active FROM listings WHERE item_id = '333'")["active"] == 1
+    held = db.one("SELECT active, deal FROM listings WHERE item_id = '111'")
+    assert held["deal"] == 0 and held["active"] == 1  # held, not blocked: still in All live
+    assert db.one("SELECT count(*) AS n FROM blocked")["n"] == 0
+    assert db.one("SELECT deal FROM listings WHERE item_id = '333'")["deal"] == 1
 
 
 def test_a_bare_gallery_scan_is_checked_against_the_main_photo(env, monkeypatch):

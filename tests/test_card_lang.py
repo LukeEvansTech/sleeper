@@ -85,3 +85,14 @@ def test_a_failed_read_is_noted_and_retried_after_unread_listings(env, monkeypat
     )
     assert sweep.lang_check(db, s, run_id(db)) == 0
     assert "card_lang" in db.one("SELECT slab FROM listings WHERE kind = 'raw'")["slab"]
+
+
+def test_a_failed_read_over_the_limit_is_not_held(env, monkeypatch):
+    s, db = env
+    db.run(
+        "UPDATE listings SET slab = ? WHERE kind = 'raw'",
+        '{"card_failed": "2026-11-17T00:00:00", "photo": ""}',
+    )
+    monkeypatch.setattr(sweep, "MAX_LANG_READS", 0)
+    sweep.lang_check(db, s, run_id(db))
+    assert db.one("SELECT deal FROM listings WHERE item_id = '444' AND kind = 'raw'")["deal"] == 1

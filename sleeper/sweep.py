@@ -390,7 +390,9 @@ def lang_check(db: DB, s: Settings, run_id: int) -> int:
         if "card_lang" in prev and prev.get("photo") == name:
             v = prev  # read before, same photo
         elif calls >= MAX_LANG_READS:
-            db.run(  # unread: no alert until it is
+            if "card_failed" in prev:
+                continue  # tried and failed before: fail open, like an LLM outage
+            db.run(  # never read: no alert until it is
                 "UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = 'raw'", r["item_id"]
             )
             continue

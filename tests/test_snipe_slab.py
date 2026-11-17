@@ -194,3 +194,24 @@ def test_the_gixen_bid_is_filled_in_only_for_dollar_listings(env):
     assert "autosnipe.php?itemid=111&amp;maxbid=" in client.get("/?show=all").text
     db.run("UPDATE listings SET cur = 'CAD' WHERE item_id = '111'")
     assert "maxbid" not in client.get("/?show=all").text
+
+
+def test_a_cached_no_slab_read_is_dropped_without_reading_again(env, monkeypatch):
+    s, db, _ = env
+    s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
+    monkeypatch.setattr(sweep.slab, "read", lambda *a: pytest.fail("cached read re-read"))
+    db.run("UPDATE listings SET art = NULL")
+    db.run(
+        "UPDATE listings SET slab = ? WHERE item_id = '111'",
+        '{"grader": "NONE", "grade": "", "lang": "", "sure": true, "photo": ""}',
+    )
+    db.run(
+        "UPDATE listings SET slab = ? WHERE item_id = '333'",
+        '{"grader": "PSA", "grade": "10", "lang": "", "sure": true, "photo": ""}',
+    )
+    run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
+    assert sweep.slab_check(db, s, run_id) == 1
+    assert db.one("SELECT reason FROM blocked WHERE item_id = '111'")["reason"] == (
+        "no slab in the photo"
+    )
+    assert db.one("SELECT active FROM listings WHERE item_id = '333'")["active"] == 1

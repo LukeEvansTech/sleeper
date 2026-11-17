@@ -35,7 +35,8 @@ BGS / Beckett labels are silver or gold with subgrades. NONE: no slab or no labe
 lang is the card's language as the label names it: JP or JAPANESE is JAPANESE; CHINESE, S-CHINESE,
 SIMPLIFIED CHINESE, T-CHINESE or CN is CHINESE; KOREAN or KR is KOREAN; "" for anything else,
 including a label that names no language.
-sure is true only when the label's company is clearly legible."""
+sure is true only when the label's company is clearly legible, or, for NONE, when the photo
+clearly shows a bare card with no slab around it."""
 
 
 def read(url: str, key: str, model: str, photo: Path, timeout: int = 90) -> dict | None:

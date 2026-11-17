@@ -334,6 +334,12 @@ def _slab_due(r: Any, photo_name: str) -> str:
     return "1" if "lang" not in v else "~"  # read before labels were checked for a language
 
 
+def _block(c: Any, item_id: str, why: str) -> None:
+    """Block a listing for good and take it off the live and deal lists, inside the caller's tx."""
+    c.execute("INSERT OR REPLACE INTO blocked (item_id, reason) VALUES (?, ?)", (item_id, why))
+    c.execute("UPDATE listings SET active = 0, deal = 0 WHERE item_id = ?", (item_id,))
+
+
 def slab_check(db: DB, s: Settings, run_id: int) -> int:
     """Read the slab label of each live PSA 10 listing; drop one that is another grader's slab
     (a CGC 9 titled "PSA 10"), a lower PSA grade, or a label naming a language the want is not
@@ -352,13 +358,21 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
     )
     langs = {w["_id"]: w.get("lang") for w in db.wants()}
     due = []
+    dropped = 0
     for r in rows:
         art = json.loads(r["art"]) if r["art"] else {}
         key = _slab_due(r, art.get("photo") or "")
         if key != "~":
             due.append((0 if r["deal"] else 1, key, r, art))
+            continue
+        # A read kept from an earlier sweep still faces today's rules (a cached NONE, say).
+        why = slab.wrong(json.loads(r["slab"]), langs.get(r["want_id"]))
+        if why:
+            with db.tx() as c:
+                _block(c, r["item_id"], why)
+            dropped += 1
+            log.info("listing %s dropped: %s", r["item_id"], why)
     due.sort(key=lambda x: (x[0], x[1]))
-    dropped = 0
     for n, (_, _, r, art) in enumerate(due):
         if n >= MAX_SLAB_READS:
             if r["deal"] and not r["slab"]:  # never read: no alert until it is
@@ -383,13 +397,7 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
                 (json.dumps(v), r["item_id"], r["kind"]),
             )
             if why:
-                c.execute(
-                    "INSERT OR REPLACE INTO blocked (item_id, reason) VALUES (?, ?)",
-                    (r["item_id"], why),
-                )
-                c.execute(
-                    "UPDATE listings SET active = 0, deal = 0 WHERE item_id = ?", (r["item_id"],)
-                )
+                _block(c, r["item_id"], why)
         if why:
             dropped += 1
             log.info("listing %s dropped: %s", r["item_id"], why)

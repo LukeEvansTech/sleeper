@@ -366,3 +366,23 @@ def test_a_known_bare_card_stays_held_while_its_new_photo_waits(env, monkeypatch
     run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
     sweep.slab_check(db, s, run_id)
     assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0
+
+
+def test_a_good_reread_lifts_the_hold_and_a_failed_one_keeps_it(env, monkeypatch):
+    s, db, _ = env
+    s = s.__class__(**{**s.__dict__, "llm_url": "http://llm.invalid"})
+    bare = '{"grader": "NONE", "grade": "", "lang": "", "sure": true, "photo": "", "prompt": 2}'
+    db.run("UPDATE listings SET art = ? WHERE item_id = '111'", '{"photo": "111_3.jpg"}')
+    db.run("UPDATE listings SET slab = ?, deal = 1 WHERE item_id = '111'", bare)
+    (s.photos_dir / "111_3.jpg").write_bytes(b"x" * 2000)
+    run_id = db.one("SELECT max(id) AS n FROM runs")["n"]
+    monkeypatch.setattr(sweep.slab, "read", lambda *a: None)
+    sweep.slab_check(db, s, run_id)
+    assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 0
+    assert '"pending": true' in db.one("SELECT slab FROM listings WHERE item_id = '111'")["slab"]
+    db.run("UPDATE listings SET slab = ?, deal = 1 WHERE item_id = '111'", bare)
+    monkeypatch.setattr(
+        sweep.slab, "read", lambda *a: {"grader": "PSA", "grade": "10", "lang": "", "sure": True}
+    )
+    sweep.slab_check(db, s, run_id)
+    assert db.one("SELECT deal FROM listings WHERE item_id = '111'")["deal"] == 1

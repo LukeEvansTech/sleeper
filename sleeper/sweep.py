@@ -405,7 +405,9 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
                 )
             continue
         # A listing still owing its main-photo check goes straight to the main photo.
-        pending = bool(r["slab"]) and bool(json.loads(r["slab"]).get("pending"))
+        prev = json.loads(r["slab"]) if r["slab"] else {}
+        pending = bool(prev.get("pending"))
+        was_bare = "failed" not in prev and slab.wrong(prev, langs.get(r["want_id"])) == slab.NO_SLAB
         photo = s.photos_dir / art["photo"] if art.get("photo") and not pending else None
         if not (photo and photo.exists()):
             photo = photos.download(photos.upgrade(r["img"]), s.photos_dir / f"{r['item_id']}.jpg")
@@ -413,7 +415,7 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
         v = slab.read(s.llm_url, s.llm_key, s.llm_model, photo) if photo else None
         if v is None:
             v = {"failed": dt.datetime.now().isoformat(timespec="seconds")}
-            if pending:
+            if pending or was_bare:
                 v["pending"] = True  # stays held until the main photo is read
                 db.run(
                     "UPDATE listings SET deal = 0 WHERE item_id = ? AND kind = ?",
@@ -455,6 +457,11 @@ def slab_check(db: DB, s: Settings, run_id: int) -> int:
             )
             if why:
                 _block(c, r["item_id"], why)
+            elif was_bare and r["deal"] and "failed" not in v:  # the new read lifts the hold
+                c.execute(
+                    "UPDATE listings SET deal = 1 WHERE item_id = ? AND kind = ?",
+                    (r["item_id"], r["kind"]),
+                )
         if why:
             dropped += 1
             log.info("listing %s dropped: %s", r["item_id"], why)

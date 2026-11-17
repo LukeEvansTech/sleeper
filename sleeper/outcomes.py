@@ -11,7 +11,7 @@ import json
 import logging
 from typing import Any
 
-from . import match
+from . import match, slab
 from .db import DB
 
 log = logging.getLogger(__name__)
@@ -147,8 +147,8 @@ def record(db: DB, cand: dict, got: dict | None, now: dt.datetime) -> str:
         )
         if o["status"] == "sold" and cand["auction"] and (o["bids"] or 0) >= 1 and not rejected:
             w = c.execute("SELECT id, spec FROM wants WHERE id = ?", (cand["want_id"],)).fetchone()
-            if w:
-                spec = json.loads(w["spec"])
+            spec = json.loads(w["spec"]) if w else {}
+            if w and not slab.card_wrong(read, spec.get("lang")):  # not a sale of another print
                 spec["_id"] = w["id"]
                 c.execute(
                     "INSERT OR IGNORE INTO sold (item_id, want_id, kind, star, usd, date, title) "

@@ -178,8 +178,9 @@ def wrong(v: dict | None, lang: str | None = None) -> str:
         return NO_SLAB  # a raw card titled "PSA 10" (seen 2026-11-17)
     if v["grader"] != "PSA":
         return f"slab is {v['grader']} {v['grade']}".strip()
-    said = v.get("lang") or ""
-    if said and said.lower() != (lang or "english"):  # no language named: inconclusive
+    said = (v.get("lang") or "").upper()
+    # Cached reads skip parse(): one stored by the pre-2026-11-13 prompt can still say OTHER.
+    if said in LANGS and said.lower() != (lang or "english"):
         return f"slab says {said.title()}"
     grade = grade_of(v)
     if grade is None:

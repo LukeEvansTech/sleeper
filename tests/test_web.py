@@ -676,6 +676,12 @@ def test_deals_filter_by_graded_raw_format_and_sort(env):
     # the card picker lists every enabled want with its live listing count
     assert f'<option value="{wid}">Vegito (3)</option>' in page
     assert f'<option value="{wid}" selected>' in client.get(f"/?show=all&want={wid}").text
+    # a picked card ignores a set filter from another set, and a paused card stays selectable
+    assert sorted(ids(f"?show=all&set=EVA&want={wid}")[0]) == ["g1", "g2", "r1"]
+    with db.tx() as c:
+        c.execute("UPDATE wants SET enabled = 0 WHERE id = ?", (wid,))
+    assert f'<option value="{wid}">' not in client.get("/?show=all").text
+    assert f'<option value="{wid}" selected>' in client.get(f"/?show=all&want={wid}").text
 
 
 def test_sweep_stores_when_each_auction_ends(env, monkeypatch):

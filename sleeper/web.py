@@ -216,9 +216,9 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
                 name="summary email",
             )
 
-    def card_index(show: str) -> list[tuple[str, list[dict]]]:
-        """Every enabled want with its live listing count (deals only on the deals view), by set:
-        the card picker on the listings page."""
+    def card_index(show: str, current: int = 0) -> list[tuple[str, list[dict]]]:
+        """Every enabled want (and the one on screen, paused or not) with its live listing count
+        (deals only on the deals view), by set: the card picker on the listings page."""
         where = f"active = 1 AND deal = 1 AND {SHOWN}" if show == "deals" else "active = 1"
         live = {
             r["want_id"]: r["n"]
@@ -227,7 +227,9 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             )
         }
         by_set: dict[str, list[dict]] = {}
-        for w in db.wants(enabled_only=True):
+        for w in db.wants():
+            if not w["_enabled"] and w["_id"] != current:
+                continue
             by_set.setdefault(w.get("set") or "Other", []).append(
                 {"id": w["_id"], "who": w.get("who") or w.get("q", ""), "n": live.get(w["_id"], 0)}
             )
@@ -381,7 +383,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         if show == "deals":
             sql += f" AND deal = 1 AND {SHOWN}"
         rows = scored([dict(r) for r in db.all(sql, *args)])
-        if set:
+        if set and not cur_want:  # a card picked from another set keeps its own listings
             rows = [r for r in rows if r["want"].get("set") == set]
         # the price slider runs to the dearest listing in view, in $50 steps
         top = int(math.ceil(builtins.max((r["v"].total for r in rows), default=0) / 50) * 50) or 50
@@ -405,7 +407,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         rows = [r for r in rows if (not kind or r["kind"] == kind) and BUY_FILTERS[buy](r)]
         rows.sort(key=SORTS[sort])
         sets = sorted({w.get("set", "") for w in db.wants()})
-        picker = card_index(show)
+        picker = card_index(show, want)
         last = db.one("SELECT * FROM runs ORDER BY id DESC LIMIT 1")
         return page(
             request,

@@ -62,7 +62,7 @@
     </select>
   </label>
   <label class="pick-price"><span class="tl">Up to</span>
-    <input type="range" name="max" min="0" max="{{ price_top }}" step="{{ 10 if price_top <= 1000 else 50 }}" value="{{ price_max or price_top }}" data-top="{{ price_top }}" aria-describedby="max-out">
+    <input type="range" name="max" min="{{ 10 if price_top <= 1000 else 50 }}" max="{{ price_top }}" step="{{ 10 if price_top <= 1000 else 50 }}" value="{{ price_max or price_top }}" data-top="{{ price_top }}" aria-describedby="max-out">
     <output id="max-out" class="price">{{ price_max | money if price_max else 'any price' }}</output>
   </label>
   <noscript><button>Apply</button></noscript>

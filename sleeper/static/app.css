@@ -1443,6 +1443,17 @@ kbd {
   background: var(--accent);
 }
 
+/* Best Offer: top right, opposite the format badge, so offer targets stand out in a grid. */
+.fmt-offer {
+  left: auto;
+  right: 8px;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  color: var(--badge-ink);
+  background: var(--fair);
+}
+
 .fmt-bin {
   color: var(--ink);
   background: color-mix(in srgb, var(--panel) 88%, transparent);

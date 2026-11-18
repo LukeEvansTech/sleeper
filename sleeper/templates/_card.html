@@ -4,6 +4,7 @@
 {% set ended = r.outcome and show_outcome %}
 <article class="tile{% if not ended %} rating-{{ r.v.rating }}{{ ' steal' if r.v.steal }}{% endif %}">
   <span class="fmt {{ 'fmt-auction' if r.auction else 'fmt-bin' }}">{{ 'Auction' if r.auction else 'Buy it now' }}</span>
+  {% if r.obo and not ended %}<span class="fmt fmt-offer" title="Accepts Best Offer"><svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M8.6 1.5H14.5V7.4L7.4 14.5 1.5 8.6Z M11.6 5.4A1 1 0 1 0 11.6 5.39" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/></svg>Offers</span>{% endif %}
   <div class="well"><img loading="lazy" src="{{ r.img | ebay_img(300) }}" alt="" width="300" height="400"></div>
   <div class="label">
     <strong class="name"><a class="stretch" href="/deal/{{ r.item_id }}/{{ r.kind }}">{{ r.want.who }}</a></strong>
@@ -23,7 +24,7 @@
     {% if r.cap %}<span class="num">ceiling {{ r.cap | money }}</span>{% endif %}
     {% if r.auction %}<span>{{ r.bids or 'no bids' }}{% if r.time_left and not r.outcome %}, {{ r.time_left }}{% endif %}</span>{% endif %}
     {% if r.auction and r.v.snipe and not r.outcome %}<span class="num max-bid">Max bid {{ r.v.snipe | bid }}</span>{% endif %}
-    {% if r.obo %}<span>offers</span>{% endif %}
+    {% if r.obo and ended %}<span>offers</span>{% endif %}
     {% if r.artd.verdict == 'match' %}<span class="ok">art matches</span>{% elif r.artd.verdict == 'differs' %}<b class="warn">art differs</b>{% elif r.artd.verdict == 'unclear' %}<span>art unclear</span>{% endif %}
   </div>
   {% if ended %}{% include "_outcome.html" %}{% if r.hindsight %}{% include "_hindsight.html" %}{% endif %}{% endif %}

@@ -143,3 +143,26 @@
     if (e.target === dlg) dlg.close(); // a click on the backdrop
   });
 })();
+
+// Card picker and price slider on the listings page: a pick reloads the page; the slider shows its
+// value while dragging and reloads on release (at the far right it means any price).
+(() => {
+  const form = document.querySelector("form[data-pick]");
+  if (!form) return;
+  const range = form.querySelector('input[type="range"]');
+  const out = form.querySelector("output");
+  const top = Number(range.dataset.top);
+  const show = () => {
+    out.textContent =
+      Number(range.value) >= top
+        ? "any price"
+        : "$" + Number(range.value).toLocaleString("en-US");
+  };
+  const go = () => {
+    range.disabled = Number(range.value) >= top; // leave max off the URL
+    form.submit();
+  };
+  form.querySelector("select").addEventListener("change", go);
+  range.addEventListener("input", show);
+  range.addEventListener("change", go);
+})();

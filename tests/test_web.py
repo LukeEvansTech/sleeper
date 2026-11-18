@@ -668,6 +668,14 @@ def test_deals_filter_by_graded_raw_format_and_sort(env):
     assert order("?show=all&sort=ending")[:2] == ["r1", "g1"]  # auctions soonest first
     assert order("?show=all&sort=new")[0] == "g2"
     assert client.get("/?show=all&sort=bogus&buy=bogus&kind=bogus").status_code == 200
+    # the price slider caps the landed price; its far end (or past it) means any price
+    assert ids("?show=all&max=850")[0] == ["g2", "r1"]
+    assert sorted(ids("?show=all&max=100000")[0]) == ["g1", "g2", "r1"]
+    page = client.get("/?show=all").text
+    assert 'max="900"' in page and "any price" in page
+    # the card picker lists every enabled want with its live listing count
+    assert f'<option value="{wid}">Vegito (3)</option>' in page
+    assert f'<option value="{wid}" selected>' in client.get(f"/?show=all&want={wid}").text
 
 
 def test_sweep_stores_when_each_auction_ends(env, monkeypatch):

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import datetime as dt
 import json
 import math
@@ -215,6 +216,23 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
                 name="summary email",
             )
 
+    def card_index(show: str) -> list[tuple[str, list[dict]]]:
+        """Every enabled want with its live listing count (deals only on the deals view), by set:
+        the card picker on the listings page."""
+        where = f"active = 1 AND deal = 1 AND {SHOWN}" if show == "deals" else "active = 1"
+        live = {
+            r["want_id"]: r["n"]
+            for r in db.all(
+                f"SELECT want_id, count(*) AS n FROM listings WHERE {where} GROUP BY want_id"
+            )
+        }
+        by_set: dict[str, list[dict]] = {}
+        for w in db.wants(enabled_only=True):
+            by_set.setdefault(w.get("set") or "Other", []).append(
+                {"id": w["_id"], "who": w.get("who") or w.get("q", ""), "n": live.get(w["_id"], 0)}
+            )
+        return [(k, sorted(v, key=lambda w: w["who"].lower())) for k, v in sorted(by_set.items())]
+
     def scored(rows: list[dict]) -> list[dict]:
         wants = {w["_id"]: w for w in db.wants()}
         cmp, pop = sweep.context(db)
@@ -350,6 +368,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         want: int = 0,
         buy: str = "",
         sort: str = "deal",
+        max: int = 0,  # pylint: disable=redefined-builtin
     ):
         sql = "SELECT * FROM listings WHERE active = 1"
         args: list = []
@@ -364,6 +383,11 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         rows = scored([dict(r) for r in db.all(sql, *args)])
         if set:
             rows = [r for r in rows if r["want"].get("set") == set]
+        # the price slider runs to the dearest listing in view, in $50 steps
+        top = int(math.ceil(builtins.max((r["v"].total for r in rows), default=0) / 50) * 50) or 50
+        max = max if 0 < max < top else 0
+        if max:
+            rows = [r for r in rows if r["v"].total <= max]
         kind = kind if kind in ("psa", "raw") else ""
         buy = buy if buy in BUY_FILTERS else ""
         sort = sort if sort in SORTS else "deal"
@@ -381,6 +405,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         rows = [r for r in rows if (not kind or r["kind"] == kind) and BUY_FILTERS[buy](r)]
         rows.sort(key=SORTS[sort])
         sets = sorted({w.get("set", "") for w in db.wants()})
+        picker = card_index(show)
         last = db.one("SELECT * FROM runs ORDER BY id DESC LIMIT 1")
         return page(
             request,
@@ -393,6 +418,9 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             buy=buy,
             sort=sort,
             counts=counts,
+            picker=picker,
+            price_max=max,
+            price_top=top,
             show=show,
             cur_want=cur_want,
             last=last,

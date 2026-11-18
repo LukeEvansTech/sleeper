@@ -54,7 +54,7 @@ pydantic-core==2.50.4
     # via pydantic
 python-dateutil==4.0.0
     # via croniter
-python-multipart==0.0.33
+python-multipart==0.0.34
     # via -r requirements.in
 pyyaml==6.0.3
     # via apprise

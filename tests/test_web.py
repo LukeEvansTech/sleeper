@@ -657,6 +657,7 @@ def test_deals_filter_by_graded_raw_format_and_sort(env):
     assert ids("?show=all&kind=raw")[0] == ["r1"]
     assert ids("?show=all&buy=auction")[0] == ["g1", "r1"]
     assert ids("?show=all&buy=offers")[0] == ["g2"]
+    assert ids("?show=all")[1].count('class="fmt fmt-offer"') == 1  # the Best Offer badge, g2 only
     # counts follow the other filter: two auctions, one of them raw
     assert 'Raw <span class="n">1</span>' in ids("?show=all&buy=auction")[1]
 

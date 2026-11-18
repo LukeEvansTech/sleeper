@@ -1443,6 +1443,33 @@ kbd {
   background: var(--accent);
 }
 
+/* Best Offer: top right, opposite the format badge, so offer targets stand out in a grid. */
+.fmt-offer {
+  left: auto;
+  right: 8px;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  color: var(--badge-ink);
+  background: var(--fair);
+}
+
+/* Two-column phone grids leave too little width for both labels: the offer badge goes icon-only. */
+@media (width <= 600px) {
+  .fmt-offer {
+    padding: 4px 6px;
+  }
+
+  .fmt-offer .fmt-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 .fmt-bin {
   color: var(--ink);
   background: color-mix(in srgb, var(--panel) 88%, transparent);

@@ -393,6 +393,43 @@ button,
   color: var(--muted);
 }
 
+.pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  align-items: center;
+  margin: -6px 0 18px;
+}
+
+.pick label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pick .tl {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.pick select {
+  max-width: min(420px, 70vw);
+  min-height: 44px;
+}
+
+.pick input[type="range"] {
+  width: min(260px, 50vw);
+  padding: 0;
+  border: 0;
+  background: none;
+  accent-color: var(--accent);
+}
+
+.pick output {
+  min-width: 6.5em;
+  font-weight: 600;
+}
+
 /* --- card grid and the slab tile --- */
 
 .grid > .empty {

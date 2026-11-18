@@ -143,3 +143,44 @@
     if (e.target === dlg) dlg.close(); // a click on the backdrop
   });
 })();
+
+// Card picker and price slider on the listings page (without JS the form has a plain select): a pick
+// reloads the page; the slider steps along a fixed price scale and reloads on release.
+(() => {
+  const form = document.querySelector("form[data-pick]");
+  if (!form) return;
+  const range = form.querySelector('input[type="range"]');
+  const out = form.querySelector("output");
+  const scale = range.dataset.scale.split(",").map(Number);
+  let cap = Number(range.dataset.cap) || 0; // a cap off the scale (typed in the URL) stays exact
+  const show = () => {
+    out.textContent = cap ? `$${cap.toLocaleString("en-US")}` : "any price";
+  };
+  range.addEventListener("input", () => {
+    cap = scale[Number(range.value)] || 0;
+    show();
+  });
+  const go = () => {
+    form.querySelectorAll('input[name="max"]').forEach((f) => f.remove()); // one kept by Back
+    if (cap) {
+      const field = document.createElement("input");
+      field.type = "hidden";
+      field.name = "max";
+      field.value = String(cap);
+      form.append(field);
+    }
+    form.submit();
+  };
+  form.querySelector('select[name="want"]').addEventListener("change", go);
+  range.addEventListener("change", go);
+  range.hidden = false;
+  out.hidden = false;
+  show();
+  // Back can restore this page as left: put the controls back to what the page shows.
+  window.addEventListener("pageshow", (e) => {
+    if (!e.persisted) return;
+    form.reset();
+    cap = Number(range.dataset.cap) || 0;
+    show();
+  });
+})();

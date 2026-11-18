@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import datetime as dt
 import json
 import math
@@ -87,6 +88,19 @@ BUY_FILTERS: dict[str, Callable[[dict], bool]] = {
     "auction": lambda r: bool(r["auction"]),
     "offers": lambda r: bool(r["obo"]),
 }
+# The listings page's price slider: the same steps on every card, then "any price".
+PRICE_SCALE = (25, 50, 75, 100, 150, 200, 250, 300, 400, 500, 750, 1000, 1500, 2000, 3000, 5000)
+
+
+def price_cap(v: str) -> int:
+    """A ?max= cap in whole dollars; 0 (any price) when absent, unreadable or past the scale."""
+    try:
+        cap = int(float(v))
+    except (TypeError, ValueError, OverflowError):  # inf and nan as well
+        return 0
+    return cap if 0 < cap <= PRICE_SCALE[-1] else 0
+
+
 SORTS: dict[str, Callable[[dict], Any]] = {
     "deal": lambda r: (not r["deal"], RATING_ORDER.get(r["v"].rating, 9), r["v"].total),
     "price": lambda r: r["v"].total,
@@ -214,6 +228,25 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
                 lambda: summary.run(db, s, render_summary),
                 name="summary email",
             )
+
+    def card_index(show: str, current: int = 0) -> list[tuple[str, list[dict]]]:
+        """Every enabled want (and the one on screen, paused or not) with its live listing count
+        (deals only on the deals view), by set: the card picker on the listings page."""
+        where = f"active = 1 AND deal = 1 AND {SHOWN}" if show == "deals" else "active = 1"
+        live = {
+            r["want_id"]: r["n"]
+            for r in db.all(
+                f"SELECT want_id, count(*) AS n FROM listings WHERE {where} GROUP BY want_id"
+            )
+        }
+        by_set: dict[str, list[dict]] = {}
+        for w in db.wants():
+            if not w["_enabled"] and w["_id"] != current:
+                continue
+            by_set.setdefault(w.get("set") or "Other", []).append(
+                {"id": w["_id"], "who": w.get("who") or w.get("q", ""), "n": live.get(w["_id"], 0)}
+            )
+        return [(k, sorted(v, key=lambda w: w["who"].lower())) for k, v in sorted(by_set.items())]
 
     def scored(rows: list[dict]) -> list[dict]:
         wants = {w["_id"]: w for w in db.wants()}
@@ -350,6 +383,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         want: int = 0,
         buy: str = "",
         sort: str = "deal",
+        max: str = "",  # pylint: disable=redefined-builtin
     ):
         sql = "SELECT * FROM listings WHERE active = 1"
         args: list = []
@@ -362,8 +396,11 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         if show == "deals":
             sql += f" AND deal = 1 AND {SHOWN}"
         rows = scored([dict(r) for r in db.all(sql, *args)])
-        if set:
+        if set and not cur_want:  # a card picked from another set keeps its own listings
             rows = [r for r in rows if r["want"].get("set") == set]
+        cap = price_cap(max)
+        if cap:
+            rows = [r for r in rows if r["v"].total <= cap]
         kind = kind if kind in ("psa", "raw") else ""
         buy = buy if buy in BUY_FILTERS else ""
         sort = sort if sort in SORTS else "deal"
@@ -381,6 +418,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         rows = [r for r in rows if (not kind or r["kind"] == kind) and BUY_FILTERS[buy](r)]
         rows.sort(key=SORTS[sort])
         sets = sorted({w.get("set", "") for w in db.wants()})
+        picker = card_index(show, want)
         last = db.one("SELECT * FROM runs ORDER BY id DESC LIMIT 1")
         return page(
             request,
@@ -393,6 +431,12 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             buy=buy,
             sort=sort,
             counts=counts,
+            picker=picker,
+            price_max=cap,
+            price_step=builtins.next(
+                (i for i, v in enumerate(PRICE_SCALE) if cap and v >= cap), len(PRICE_SCALE)
+            ),
+            price_scale=PRICE_SCALE,
             show=show,
             cur_want=cur_want,
             last=last,

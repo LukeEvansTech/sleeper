@@ -670,7 +670,15 @@ def test_deals_filter_by_graded_raw_format_and_sort(env):
     assert client.get("/?show=all&sort=bogus&buy=bogus&kind=bogus").status_code == 200
     # the price slider caps the landed price; its far end (or past it) means any price
     assert ids("?show=all&max=850")[0] == ["g2", "r1"]
-    for anything in ("", "100000", "bogus", "0"):  # empty, past the scale or unreadable: any price
+    for anything in (
+        "",
+        "100000",
+        "bogus",
+        "0",
+        "inf",
+        "nan",
+        "1e309",
+    ):  # empty, past the scale or unreadable: any price
         assert sorted(ids(f"?show=all&max={anything}")[0]) == ["g1", "g2", "r1"]
     page = client.get("/?show=all").text
     assert 'value="16" data-scale="25,50,' in page and "any price" in page

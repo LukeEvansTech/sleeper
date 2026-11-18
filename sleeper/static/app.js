@@ -161,6 +161,7 @@
     show();
   });
   const go = () => {
+    form.querySelectorAll('input[name="max"]').forEach((f) => f.remove()); // one kept by Back
     if (cap) {
       const field = document.createElement("input");
       field.type = "hidden";

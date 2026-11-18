@@ -96,7 +96,7 @@ def price_cap(v: str) -> int:
     """A ?max= cap in whole dollars; 0 (any price) when absent, unreadable or past the scale."""
     try:
         cap = int(float(v))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):  # inf and nan as well
         return 0
     return cap if 0 < cap <= PRICE_SCALE[-1] else 0
 

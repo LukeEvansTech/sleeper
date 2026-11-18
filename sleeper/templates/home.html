@@ -68,6 +68,7 @@
   <noscript>
     <select name="max" aria-label="Up to">
       <option value="">Any price</option>
+      {% if price_max and price_max not in price_scale %}<option value="{{ price_max }}" selected>Up to {{ price_max | money }}</option>{% endif %}
       {% for v in price_scale %}<option value="{{ v }}"{{ ' selected' if v == price_max }}>Up to {{ v | money }}</option>{% endfor %}
     </select>
     <button>Apply</button>

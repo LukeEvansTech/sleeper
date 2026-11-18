@@ -88,6 +88,19 @@ BUY_FILTERS: dict[str, Callable[[dict], bool]] = {
     "auction": lambda r: bool(r["auction"]),
     "offers": lambda r: bool(r["obo"]),
 }
+# The listings page's price slider: the same steps on every card, then "any price".
+PRICE_SCALE = (25, 50, 75, 100, 150, 200, 250, 300, 400, 500, 750, 1000, 1500, 2000, 3000, 5000)
+
+
+def price_cap(v: str) -> int:
+    """A ?max= cap in whole dollars; 0 (any price) when absent, unreadable or past the scale."""
+    try:
+        cap = int(float(v))
+    except (TypeError, ValueError):
+        return 0
+    return cap if 0 < cap <= PRICE_SCALE[-1] else 0
+
+
 SORTS: dict[str, Callable[[dict], Any]] = {
     "deal": lambda r: (not r["deal"], RATING_ORDER.get(r["v"].rating, 9), r["v"].total),
     "price": lambda r: r["v"].total,
@@ -370,7 +383,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         want: int = 0,
         buy: str = "",
         sort: str = "deal",
-        max: int = 0,  # pylint: disable=redefined-builtin
+        max: str = "",  # pylint: disable=redefined-builtin
     ):
         sql = "SELECT * FROM listings WHERE active = 1"
         args: list = []
@@ -385,11 +398,9 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         rows = scored([dict(r) for r in db.all(sql, *args)])
         if set and not cur_want:  # a card picked from another set keeps its own listings
             rows = [r for r in rows if r["want"].get("set") == set]
-        # the price slider runs to the dearest listing in view, in $50 steps
-        top = int(math.ceil(builtins.max((r["v"].total for r in rows), default=0) / 50) * 50) or 50
-        max = max if 0 < max < top else 0
-        if max:
-            rows = [r for r in rows if r["v"].total <= max]
+        cap = price_cap(max)
+        if cap:
+            rows = [r for r in rows if r["v"].total <= cap]
         kind = kind if kind in ("psa", "raw") else ""
         buy = buy if buy in BUY_FILTERS else ""
         sort = sort if sort in SORTS else "deal"
@@ -421,8 +432,11 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             sort=sort,
             counts=counts,
             picker=picker,
-            price_max=max,
-            price_top=top,
+            price_max=cap,
+            price_step=builtins.next(
+                (i for i, v in enumerate(PRICE_SCALE) if cap and v >= cap), len(PRICE_SCALE)
+            ),
+            price_scale=PRICE_SCALE,
             show=show,
             cur_want=cur_want,
             last=last,

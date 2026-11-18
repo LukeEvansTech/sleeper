@@ -62,10 +62,16 @@
     </select>
   </label>
   <label class="pick-price"><span class="tl">Up to</span>
-    <input type="range" name="max" min="{{ 10 if price_top <= 1000 else 50 }}" max="{{ price_top }}" step="{{ 10 if price_top <= 1000 else 50 }}" value="{{ price_max or price_top }}" data-top="{{ price_top }}" aria-describedby="max-out">
-    <output id="max-out" class="price">{{ price_max | money if price_max else 'any price' }}</output>
+    <input type="range" min="0" max="{{ price_scale | length }}" step="1" value="{{ price_step }}" data-scale="{{ price_scale | join(',') }}" data-cap="{{ price_max or '' }}" aria-describedby="max-out" hidden>
+    <output id="max-out" class="price" hidden>{{ price_max | money if price_max else 'any price' }}</output>
   </label>
-  <noscript><button>Apply</button></noscript>
+  <noscript>
+    <select name="max" aria-label="Up to">
+      <option value="">Any price</option>
+      {% for v in price_scale %}<option value="{{ v }}"{{ ' selected' if v == price_max }}>Up to {{ v | money }}</option>{% endfor %}
+    </select>
+    <button>Apply</button>
+  </noscript>
 </form>
 <div class="grid">
 {% for r in rows %}{% include "_card.html" %}{% else %}<p class="muted empty">{% if kind or buy %}Nothing matches these filters. <a href="{{ qs(kind_='', buy_='') }}">Show graded and raw in any format</a>.{% elif show == 'deals' %}No deals right now. <a href="{{ qs(show_='all') }}">See every live listing</a> or raise a ceiling on the Wants page.{% else %}No live listings yet. The next sweep will look again.{% endif %}</p>{% endfor %}

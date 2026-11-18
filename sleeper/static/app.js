@@ -144,25 +144,35 @@
   });
 })();
 
-// Card picker and price slider on the listings page: a pick reloads the page; the slider shows its
-// value while dragging and reloads on release (at the far right it means any price).
+// Card picker and price slider on the listings page (without JS the form has a plain select): a pick
+// reloads the page; the slider steps along a fixed price scale and reloads on release.
 (() => {
   const form = document.querySelector("form[data-pick]");
   if (!form) return;
   const range = form.querySelector('input[type="range"]');
   const out = form.querySelector("output");
-  const top = Number(range.dataset.top);
+  const scale = range.dataset.scale.split(",").map(Number);
+  let cap = Number(range.dataset.cap) || 0; // a cap off the scale (typed in the URL) stays exact
   const show = () => {
-    out.textContent =
-      Number(range.value) >= top
-        ? "any price"
-        : "$" + Number(range.value).toLocaleString("en-US");
+    out.textContent = cap ? `$${cap.toLocaleString("en-US")}` : "any price";
   };
+  range.addEventListener("input", () => {
+    cap = scale[Number(range.value)] || 0;
+    show();
+  });
   const go = () => {
-    range.disabled = Number(range.value) >= top; // leave max off the URL
+    if (cap) {
+      const field = document.createElement("input");
+      field.type = "hidden";
+      field.name = "max";
+      field.value = String(cap);
+      form.append(field);
+    }
     form.submit();
   };
-  form.querySelector("select").addEventListener("change", go);
-  range.addEventListener("input", show);
+  form.querySelector('select[name="want"]').addEventListener("change", go);
   range.addEventListener("change", go);
+  range.hidden = false;
+  out.hidden = false;
+  show();
 })();

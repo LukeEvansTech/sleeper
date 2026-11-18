@@ -176,4 +176,11 @@
   range.hidden = false;
   out.hidden = false;
   show();
+  // Back can restore this page as left: put the controls back to what the page shows.
+  window.addEventListener("pageshow", (e) => {
+    if (!e.persisted) return;
+    form.reset();
+    cap = Number(range.dataset.cap) || 0;
+    show();
+  });
 })();

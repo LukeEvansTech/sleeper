@@ -4,7 +4,7 @@
 {% set ended = r.outcome and show_outcome %}
 <article class="tile{% if not ended %} rating-{{ r.v.rating }}{{ ' steal' if r.v.steal }}{% endif %}">
   <span class="fmt {{ 'fmt-auction' if r.auction else 'fmt-bin' }}">{{ 'Auction' if r.auction else 'Buy it now' }}</span>
-  {% if r.obo and not ended %}<span class="fmt fmt-offer" title="Accepts Best Offer"><svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M8.6 1.5H14.5V7.4L7.4 14.5 1.5 8.6Z M11.6 5.4A1 1 0 1 0 11.6 5.39" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/></svg>Offers</span>{% endif %}
+  {% if r.obo and not ended %}<span class="fmt fmt-offer" title="Accepts Best Offer"><svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M8.6 1.5H14.5V7.4L7.4 14.5 1.5 8.6Z M11.6 5.4A1 1 0 1 0 11.6 5.39" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/></svg><span class="fmt-word">Offers</span></span>{% endif %}
   <div class="well"><img loading="lazy" src="{{ r.img | ebay_img(300) }}" alt="" width="300" height="400"></div>
   <div class="label">
     <strong class="name"><a class="stretch" href="/deal/{{ r.item_id }}/{{ r.kind }}">{{ r.want.who }}</a></strong>

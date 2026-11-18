@@ -6,8 +6,9 @@ holds what the code does not say.
 - Pipeline: `sleeper/sweep.py` `run()` (collect per want → store → photo check → alert). Matching
   and ceilings: `match.py`. Verdicts: `value.py` (pure; test it there). Pages: `web.py` and
   `templates/`.
-- Deployed on the talos-cluster (`kubernetes/apps/default/sleeper`), which alerts on
-  `sleeper_last_success_timestamp_seconds` from `GET /metrics`.
+- Deployed on the talos-cluster (`kubernetes/apps/custom/sleeper`), which alerts on
+  `sleeper_last_success_timestamp_seconds` from `GET /metrics`. The cluster runs the image of the
+  latest `v*` tag: a merge to `main` deploys nothing until a tag is pushed and Renovate's pin PR merges.
 - Before pushing: `python -m pytest -q`, then black, isort, flake8, pylint, ruff and mypy with the
   configs in `.github/linters/` (super-linter runs the same).
 

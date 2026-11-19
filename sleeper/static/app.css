@@ -974,7 +974,33 @@ textarea {
 .deal-group h2,
 .want-group h2 {
   margin-bottom: 12px;
+}
+
+.want-group,
+.set-row th {
   scroll-margin-top: 16px;
+}
+
+.group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.set-move {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.set-move button {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0 8px;
+}
+
+.set-move button:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .list .set-row th {

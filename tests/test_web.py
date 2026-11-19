@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sleeper import config, photos, sweep
 from sleeper.db import DB
-from sleeper.groups import grouped, rarity
+from sleeper.groups import grouped, moved, ordered_sets, rarity
 from sleeper.web import create_app
 
 
@@ -326,6 +326,20 @@ def test_wants_cards_view_art_picker_and_defaults(env):
     )
     assert grouped.index('id="set-fma-h"') < grouped.index("Scar")
     assert 'id="set-fma-row"' in client.get("/wants?view=table").text
+    # sets can be put in any order; the order holds on both views and the listings page chips
+    r = client.post("/wants/sets/move", data={"set": "FMA", "dir": "up"}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].endswith("#set-fma")
+    moved_page = client.get("/wants").text
+    assert moved_page.index('id="set-fma-h"') < moved_page.index('id="set-dbs-h"')
+    table = client.get("/wants?view=table").text
+    assert table.index('id="set-fma-row"') < table.index('id="set-dbs-row"')
+    home = client.get("/").text
+    assert home.index(">FMA</a>") < home.index(">DBS</a>")
+    client.post("/wants/sets/move", data={"set": "FMA", "dir": "up"})  # already first: no change
+    client.post("/wants/sets/move", data={"set": "Nope", "dir": "down"})  # unknown set: ignored
+    assert client.get("/wants").text.index('id="set-fma-h"') < client.get("/wants").text.index(
+        'id="set-dbs-h"'
+    )
     client.post("/api/import", json={"wants": [{"who": "Setless", "q": "x"}]})  # set is optional
     assert (
         "No set" in client.get("/wants").text and "No set" in client.get("/wants?view=table").text
@@ -829,3 +843,16 @@ def test_rarity_and_grouping():
     ]
     # other groupings start with the group holding the best row under the current sort
     assert [t for t, _ in grouped(rows, "set", lambda r: r["n"])] == ["FMA", "EVA"]
+
+
+def test_set_order():
+    assert ordered_sets(["FMA", "EVA", "FIN", "EVA"], ["FIN"]) == ["FIN", "EVA", "FMA"]
+    assert moved(["A", "B", "C"], "C", -1) == ["A", "C", "B"]
+    assert moved(["A", "B", "C"], "A", -1) == ["A", "B", "C"]
+    assert moved(["A", "B"], "Z", 1) == ["A", "B"]
+
+    class V:  # pylint: disable=too-few-public-methods
+        rating = "good"
+
+    rows = [{"v": V(), "want": {"set": s}, "n": i} for i, s in enumerate(["EVA", "FIN"])]
+    assert [t for t, _ in grouped(rows, "set", lambda r: r["n"], ["FIN", "EVA"])] == ["FIN", "EVA"]

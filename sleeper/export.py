@@ -38,7 +38,8 @@ SET_NAMES = {
     "LTC": "The Lord of the Rings Commander",
 }
 UA_SET = re.compile(r"^U([AE])(\d+)(BT|ST)$")  # Union Arena: Japanese (A) or English (E) prints
-NUMBER = re.compile(r"#\s*0*(\d+)|-(\d+)(?:_|\s|$)")
+MTG_NUMBER = re.compile(r"#\s*0*(\d+)")  # "Summon: Anima FIN #0364"
+UA_NUMBER = re.compile(r"/[A-Z0-9]+-[^-\s]+-0*(\d+)")  # "UE15BT/EVA-1-005_p1"
 THUMB_W = 240  # px: sharp enough to recognise the art, small enough for a few hundred cards
 
 
@@ -83,10 +84,9 @@ def set_name(code: str) -> str:
 
 def number(w: dict) -> int:
     """The collector number of the card a want is after, for sorting; very large when it has none."""
-    for text in (str(w.get("who") or ""), str(w.get("cards") or "")):
-        m = NUMBER.search(text)
-        if m:
-            return int(m.group(1) or m.group(2))
+    m = UA_NUMBER.search(str(w.get("cards") or "")) or MTG_NUMBER.search(str(w.get("who") or ""))
+    if m:
+        return int(m.group(1))
     return 10**9
 
 

@@ -23,7 +23,7 @@ from .groups import ordered_sets, rarity
 
 EXPORT_LAST = "export_last"  # kv: the print sets, treatments and format last exported
 # A Magic want names its print in its title, e.g. "Summon: Anima FIN #364" or "Yojimbo SLD #7004".
-MTG_CODE = re.compile(r"\b([A-Z]{3})\s*#\s*\w+", re.I)
+MTG_CODE = re.compile(r"(?<![\w'])([A-Za-z]{3})\s*#\s*\w+")
 UA_CODE = re.compile(r"^\s*([A-Z0-9]+)/")
 THUMB_W = 240  # px: sharp enough to recognise the art, small enough for a few hundred cards
 
@@ -45,14 +45,23 @@ def print_set(w: dict) -> str:
     m = UA_CODE.match(str(w.get("cards") or ""))
     if m:
         return m.group(1).upper()
-    m = MTG_CODE.search(str(w.get("who") or ""))
-    return m.group(1).upper() if m else (w.get("set") or "")
+    series = w.get("set") or ""
+    for m in MTG_CODE.finditer(str(w.get("who") or "")):
+        code = m.group(1)  # a set code is written in capitals, or is the series itself ("fin #526")
+        if code.isupper() or code.upper() == series.upper():
+            return code.upper()
+    return series
+
+
+def pick_id(w: dict) -> str:
+    """The checkbox value for the print set of a want: series and code, as promos share UEPR."""
+    return f"{w.get('set') or ''}:{print_set(w)}"
 
 
 def chosen(w: dict, codes: set[str], kinds: set[str]) -> bool:
     """Is a want on and inside the picked print sets and treatments (an empty pick takes all)?"""
     return bool(w.get("_enabled")) and (
-        (not codes or print_set(w) in codes) and (not kinds or rarity(w) in kinds)
+        (not codes or pick_id(w) in codes) and (not kinds or rarity(w) in kinds)
     )
 
 
@@ -111,7 +120,7 @@ def add_routes(
         kinds: dict[str, int] = {}
         for w in wants:
             series = codes.setdefault(w.get("set") or "", {})
-            series[print_set(w)] = series.get(print_set(w), 0) + 1
+            series[pick_id(w)] = series.get(pick_id(w), 0) + 1
             kinds[rarity(w)] = kinds.get(rarity(w), 0) + 1
         last = db.get(EXPORT_LAST, {})
         return tpl.TemplateResponse(
@@ -141,7 +150,7 @@ def add_routes(
         db.put(EXPORT_LAST, {"codes": sorted(codes), "kinds": sorted(kinds), "format": fmt})
         groups = checklist(wants, db.get(set_order, []), refs_dir, skipped)
         today = dt.date.today().isoformat()
-        picked = sorted(codes)
+        picked = sorted({c.split(":", 1)[-1] or "no-code" for c in codes})
         label = "-".join(picked) if 0 < len(picked) <= 3 else "cards"
         name = re.sub(r"[^A-Za-z0-9-]+", "-", label).strip("-") or "cards"
         html = tpl.get_template("export_file.html").render(

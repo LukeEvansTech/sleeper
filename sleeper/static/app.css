@@ -1610,23 +1610,49 @@ kbd {
   color: var(--high);
 }
 
-/* export: one row per set with its download */
-.export-list {
+/* export: print sets, treatments and format to tick */
+.export-form {
   display: grid;
-  gap: 8px;
-  max-width: 560px;
-  margin: 16px 0 0;
-  padding: 0;
-  list-style: none;
+  gap: 16px;
+  max-width: 900px;
 }
 
-.export-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
+.export-form fieldset {
+  margin: 0;
+  padding: 12px 14px 14px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
+}
+
+.export-form legend {
+  padding: 0 6px;
+  font-weight: 700;
+}
+
+.export-series {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.export-series strong {
+  min-width: 3.5em;
+}
+
+.chip-check {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.chip-check .n {
+  color: var(--muted);
+  font-size: 0.85em;
 }

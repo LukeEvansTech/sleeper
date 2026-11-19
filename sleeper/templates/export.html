@@ -4,13 +4,37 @@
 <section class="head-row">
   <div>
     <h1>Export a checklist</h1>
-    <p class="muted">A single HTML file to send to someone sorting cards: the picture, name and print code of every want that's on. Prices and ceilings stay out. It opens in any browser, offline.</p>
+    <p class="muted">A file to send to someone sorting cards: the picture, name and print code of every want that's on. Prices and ceilings stay out. Tick what goes in; a group left with nothing ticked takes all of it. Your last choice is remembered.</p>
   </div>
 </section>
-<ul class="export-list">
-  <li><span><strong>All sets</strong> <span class="muted small">{{ total }} card{{ 's' if total != 1 }}</span></span><a class="button primary" href="/export/download">Download</a></li>
-  {% for name, n in sets %}
-  <li><span><strong>{{ name or 'No set' }}</strong> <span class="muted small">{{ n }} card{{ 's' if n != 1 }}</span></span><a class="button" href="/export/download?set={{ name | urlencode }}">Download</a></li>
-  {% endfor %}
-</ul>
+<form class="export-form" method="get" action="/export/download">
+  <fieldset>
+    <legend>Print sets</legend>
+    {% for series, codes in series %}
+    <div class="export-series">
+      <strong>{{ series or 'No set' }}</strong>
+      {% for pick, n in codes %}
+      {% set code = pick.split(':', 1)[1] %}
+      <label class="chip-check"><input type="checkbox" name="code" value="{{ pick }}" id="code-{{ pick | replace(':', '-') or 'none' }}"{{ ' checked' if not codes_on or pick in codes_on }}> {{ code or 'No code' }} <span class="n">{{ n }}</span></label>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </fieldset>
+  <fieldset>
+    <legend>Treatments and rarities</legend>
+    <div class="export-series">
+      {% for kind, n in kinds %}
+      <label class="chip-check"><input type="checkbox" name="kind" value="{{ kind }}" id="kind-{{ loop.index }}"{{ ' checked' if not kinds_on or kind in kinds_on }}> {{ kind }} <span class="n">{{ n }}</span></label>
+      {% endfor %}
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend>Format</legend>
+    <div class="export-series">
+      <label class="chip-check"><input type="radio" name="format" value="pdf" id="fmt-pdf"{{ ' checked' if fmt == 'pdf' }}> PDF</label>
+      <label class="chip-check"><input type="radio" name="format" value="html" id="fmt-html"{{ ' checked' if fmt != 'pdf' }}> Web page (opens offline)</label>
+    </div>
+  </fieldset>
+  <p><button class="button primary">Download checklist</button> <span class="muted small">{{ total }} cards are on in all.</span></p>
+</form>
 {% endblock %}

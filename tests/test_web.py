@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sleeper import config, photos, sweep
 from sleeper.db import DB
+from sleeper.export import print_set as export_print_set
 from sleeper.groups import grouped, moved, ordered_sets, rarity
 from sleeper.web import create_app
 
@@ -860,49 +861,77 @@ def test_set_order():
     assert [t for t, _ in grouped(rows, "set", lambda r: r["n"], ["FIN", "EVA"])] == ["FIN", "EVA"]
 
 
-def test_export_checklist(env):
+def test_export_checklist(env, monkeypatch):
     import cv2  # pylint: disable=import-outside-toplevel
     import numpy as np  # pylint: disable=import-outside-toplevel
+    from sleeper import export  # pylint: disable=import-outside-toplevel
 
     s, db, client = env
     s.refs_dir.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(s.refs_dir / "rei.jpg"), np.full((700, 500, 3), 200, np.uint8))
+    rei = {"set": "EVA", "who": "Rei", "q": "r", "cards": "UE15BT/EVA-1-005_p1 SR★★"}
     client.post(
         "/api/import",
         json={
             "wants": [
+                {**rei, "refs": ["rei.jpg"]},
                 {
-                    "set": "EVA",
-                    "who": "Rei",
-                    "q": "r",
-                    "cards": "UE15BT/EVA-1-005_p1 SR★★",
-                    "refs": ["rei.jpg"],
+                    "set": "FIN",
+                    "who": "Summon: Anima FIN #364 Borderless",
+                    "q": "a",
+                    "max": {"any": 70},
                 },
-                {"set": "FIN", "who": "Cloud", "q": "c", "max": {"any": 70}},
-                {"set": "FIN", "who": "Paused one", "q": "p"},
+                {"set": "FIN", "who": "Kefka FIN #543 Borderless, Surge Foil", "q": "k"},
+                {"set": "FIN", "who": "Yojimbo (Solitude) SLD #7004 Secret Lair", "q": "y"},
+                {"set": "FIN", "who": "Paused one FIN #1", "q": "p"},
             ]
         },
     )
-    db.run("UPDATE wants SET enabled = 0 WHERE id = 3")
+    db.run("UPDATE wants SET enabled = 0 WHERE id = 5")
     page = client.get("/export").text
-    assert "/export/download?set=EVA" in page and "2 cards" in page
-    r = client.get("/export/download?set=EVA")
+    for code in ("UE15BT", "FIN", "SLD"):
+        assert f'name="code" value="{"EVA" if code == "UE15BT" else "FIN"}:{code}"' in page
+    assert 'name="kind" value="Surge foil"' in page and 'name="kind" value="SR★★"' in page
+    r = client.get("/export/download?code=EVA:UE15BT")
     assert r.status_code == 200
-    assert 'filename="card-wants-EVA-' in r.headers["content-disposition"]
+    assert 'filename="card-wants-UE15BT-' in r.headers["content-disposition"]
     assert "data:image/jpeg;base64," in r.text and "UE15BT/EVA-1-005_p1 SR★★" in r.text
     every = client.get("/export/download").text
-    assert "Cloud" in every and "Paused one" not in every and "$70" not in every
-    assert client.get("/export/download?set=NOPE").status_code == 404
-    client.post("/api/import", json={"wants": [{"who": "Setless", "q": "s", "refs": ["rei.jpg"]}]})
-    setless = client.get("/export/download?set=")
-    assert "Setless" in setless.text and "Cloud" not in setless.text
-    assert 'filename="card-wants-no-set-' in setless.headers["content-disposition"]
+    assert "Anima" in every and "Paused one" not in every and "$70" not in every
+    # FIN without the collector-only surge foils, and no Secret Lair
+    fin = client.get("/export/download?code=FIN:FIN&kind=Borderless").text
+    assert "Anima" in fin and "Kefka" not in fin and "Yojimbo" not in fin
+    assert 'value="FIN:FIN" id="code-FIN-FIN" checked' in client.get("/export").text  # remembered
+    assert 'value="FIN:SLD" id="code-FIN-SLD">' in client.get("/export").text
+    assert client.get("/export/download?code=NOPE").status_code == 404
+    client.post(
+        "/api/import",
+        json={"wants": [{"set": "FMA", "who": "Ed promo", "q": "e", "cards": "UEPR/FMA-1-010 U"}]},
+    )
+    assert "Ed promo" not in client.get("/export/download?code=EVA:UEPR&code=EVA:UE15BT").text
+    assert "Ed promo" in client.get("/export/download?code=FMA:UEPR").text
+    monkeypatch.setattr(export, "pdf", lambda html: b"%PDF-1.7 " + html[:20].encode())
+    r = client.get("/export/download?code=FIN:FIN&format=pdf")
+    assert r.headers["content-type"] == "application/pdf" and r.content.startswith(b"%PDF")
+    assert r.headers["content-disposition"].endswith('.pdf"')
     # a want whose every picture is unticked exports with no picture rather than a rejected one
-    db.run("UPDATE wants SET spec = json_set(spec, '$.skip', json('[\"rei.jpg\"]')) WHERE id = 4")
-    assert "data:image" not in client.get("/export/download?set=").text
+    db.run("UPDATE wants SET spec = json_set(spec, '$.skip', json('[\"rei.jpg\"]')) WHERE id = 1")
+    assert "data:image" not in client.get("/export/download?code=EVA:UE15BT").text
     cv2.imwrite(str(s.refs_dir.parent / "outside.jpg"), np.full((70, 50, 3), 9, np.uint8))
     client.post(
         "/api/import",
         json={"wants": [{"set": "X", "who": "Escape", "q": "e", "refs": ["../outside.jpg"]}]},
     )
-    assert "data:image" not in client.get("/export/download?set=X").text
+    assert "data:image" not in client.get("/export/download?code=X:X").text
+
+
+def test_print_set():
+    assert export_print_set({"cards": "UEPR/EVA-1-079 UR"}) == "UEPR"
+    assert export_print_set({"who": "Cloud Strife (Najeela) FCA #42 Through the Ages"}) == "FCA"
+    assert (
+        export_print_set({"set": "FIN", "who": "Fang, Fearless L'Cie fin #526 borderless"}) == "FIN"
+    )
+    assert export_print_set({"set": "FIN", "who": "Fang, Fearless L'Cie #526 Borderless"}) == "FIN"
+    assert export_print_set({"set": "FIN", "who": "Mog Cie #5"}) == "FIN"
+    assert export_print_set({"set": "FIN", "who": "Tifa Lockhart #0567 Chocobo Track"}) == "FIN"
+    assert export_print_set({"set": "DBS", "who": "Vegito SPR signature"}) == "DBS"

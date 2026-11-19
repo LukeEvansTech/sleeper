@@ -808,6 +808,10 @@ def test_rarity_and_grouping():
     assert rarity({"who": "Kefka FIN #543 Borderless, Surge Foil"}) == "Surge foil"
     assert rarity({"who": "Cloud FIN #375 Borderless"}) == "Borderless"
     assert rarity({"who": "Vegito"}) == "Other"
+    two = {"cards": "UE09BT/FMA-1-090_p1 SR★, UE09BT/FMA-1-090_p2 SR★★"}
+    assert (
+        rarity(two, "2") == "SR★★" and rarity(two, "1") == "SR★" and rarity(two, "any") == "Mixed"
+    )
 
     class V:  # pylint: disable=too-few-public-methods
         def __init__(self, rating):

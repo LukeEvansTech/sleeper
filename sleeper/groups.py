@@ -27,11 +27,19 @@ MTG_TREATMENTS = (
 )
 
 
-def rarity(w: dict) -> str:
-    """The rarity or print treatment the listings of a want share, for grouping the listings page."""
-    m = UA_RARITY.search(str(w.get("cards") or ""))
-    if m:
-        return m.group(1) + m.group(2)
+def rarity(w: dict, star: str = "") -> str:
+    """The rarity or print treatment of a listing, from its want, for grouping the listings page.
+
+    A want listing several Union Arena prints of different rarities is resolved by the listing's
+    own star count; when that does not settle it the listing goes under "Mixed".
+    """
+    found = sorted({a + b for a, b in UA_RARITY.findall(str(w.get("cards") or ""))})
+    if len(found) == 1:
+        return found[0]
+    if found:
+        stars = int(star) if str(star).isdigit() else -1
+        hits = [x for x in found if x.count("★") == stars]
+        return hits[0] if len(hits) == 1 else "Mixed"
     who = str(w.get("who") or "").lower()
     return next((label for key, label in MTG_TREATMENTS if key in who), "Other")
 
@@ -40,7 +48,7 @@ def rarity(w: dict) -> str:
 GROUPS: dict[str, tuple[str, Callable[[dict], str]]] = {
     "rating": ("Deal rating", lambda r: RATING_LABELS.get(r["v"].rating, r["v"].rating.title())),
     "set": ("Series", lambda r: r["want"].get("set") or "No set"),
-    "rarity": ("Rarity", lambda r: rarity(r["want"])),
+    "rarity": ("Rarity", lambda r: rarity(r["want"], r.get("star", ""))),
     "card": ("Card", lambda r: r["want"].get("who") or "Unnamed card"),
     "none": ("None", lambda r: ""),
 }

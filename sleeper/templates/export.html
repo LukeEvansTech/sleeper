@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Export · sleeper{% endblock %}
+{% block body %}
+<section class="head-row">
+  <div>
+    <h1>Export a checklist</h1>
+    <p class="muted">A single HTML file to send to someone sorting cards: the picture, name and print code of every want that's on. Prices and ceilings stay out. It opens in any browser, offline.</p>
+  </div>
+</section>
+<ul class="export-list">
+  <li><span><strong>All sets</strong> <span class="muted small">{{ total }} card{{ 's' if total != 1 }}</span></span><a class="button primary" href="/export/download">Download</a></li>
+  {% for name, n in sets %}
+  <li><span><strong>{{ name or 'No set' }}</strong> <span class="muted small">{{ n }} card{{ 's' if n != 1 }}</span></span><a class="button" href="/export/download?set={{ name | urlencode }}">Download</a></li>
+  {% endfor %}
+</ul>
+{% endblock %}

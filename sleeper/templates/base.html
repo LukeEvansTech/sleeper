@@ -21,6 +21,7 @@
     <a href="/ended" {{ 'aria-current=page' if here.startswith('/ended') }}>Ended</a>
     <a href="/wants" {{ 'aria-current=page' if here.startswith('/wants') and here != '/wants/new' }}>Wants</a>
     <a href="/wants/new" {{ 'aria-current=page' if here == '/wants/new' }}>Add card</a>
+    <a href="/export" {{ 'aria-current=page' if here.startswith('/export') }}>Export</a>
     <a href="/summary" {{ 'aria-current=page' if here.startswith('/summary') }}>Summary</a>
     <a href="/ops" {{ 'aria-current=page' if here.startswith('/ops') or here.startswith('/run') }}>Runs</a>
   </nav>

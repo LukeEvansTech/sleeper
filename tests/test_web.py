@@ -900,3 +900,9 @@ def test_export_checklist(env):
     # a want whose every picture is unticked exports with no picture rather than a rejected one
     db.run("UPDATE wants SET spec = json_set(spec, '$.skip', json('[\"rei.jpg\"]')) WHERE id = 4")
     assert "data:image" not in client.get("/export/download?set=").text
+    cv2.imwrite(str(s.refs_dir.parent / "outside.jpg"), np.full((70, 50, 3), 9, np.uint8))
+    client.post(
+        "/api/import",
+        json={"wants": [{"set": "X", "who": "Escape", "q": "e", "refs": ["../outside.jpg"]}]},
+    )
+    assert "data:image" not in client.get("/export/download?set=X").text

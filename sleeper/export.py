@@ -44,7 +44,8 @@ def checklist(
     for w in wants:
         if not w.get("_enabled"):
             continue
-        refs = photos.refs_for(w, refs_dir)
+        home = refs_dir.resolve()  # a ref naming a path outside the refs folder is never read
+        refs = [r for r in photos.refs_for(w, refs_dir) if r.resolve().is_relative_to(home)]
         kept = [r for r in refs if r.name not in skipped(w)]  # all unticked: no picture
         by_set.setdefault(w.get("set") or "", []).append(
             {

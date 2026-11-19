@@ -425,9 +425,12 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         sets = ordered_sets((w.get("set", "") for w in db.wants()), set_order)
         picker = card_index(show, want)
         last = db.one("SELECT * FROM runs ORDER BY id DESC LIMIT 1")
+        art = photos.refs_for(cur_want, s.refs_dir) if cur_want else []
+        kept = [r for r in art if r.name not in set_of((cur_want or {}).get("skip"))]
         return page(
             request,
             "home.html",
+            want_art=(kept or art)[0].name if art else "",
             rows=rows[:400],
             groups=grouped(rows[:400], group, SORTS[sort], set_order),
             group=group,

@@ -42,7 +42,7 @@ numpy==2.5.5
     #   opencv-python-headless
 oauthlib==4.0.1
     # via requests-oauthlib
-opencv-python-headless==5.0.0.93
+opencv-python-headless==5.1.0.95
     # via -r requirements.in
 opentelemetry-api==1.45.2
     # via fastapi

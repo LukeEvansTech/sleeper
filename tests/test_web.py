@@ -893,3 +893,10 @@ def test_export_checklist(env):
     every = client.get("/export/download").text
     assert "Cloud" in every and "Paused one" not in every and "$70" not in every
     assert client.get("/export/download?set=NOPE").status_code == 404
+    client.post("/api/import", json={"wants": [{"who": "Setless", "q": "s", "refs": ["rei.jpg"]}]})
+    setless = client.get("/export/download?set=")
+    assert "Setless" in setless.text and "Cloud" not in setless.text
+    assert 'filename="card-wants-no-set-' in setless.headers["content-disposition"]
+    # a want whose every picture is unticked exports with no picture rather than a rejected one
+    db.run("UPDATE wants SET spec = json_set(spec, '$.skip', json('[\"rei.jpg\"]')) WHERE id = 4")
+    assert "data:image" not in client.get("/export/download?set=").text

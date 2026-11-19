@@ -45,7 +45,7 @@ def checklist(
         if not w.get("_enabled"):
             continue
         refs = photos.refs_for(w, refs_dir)
-        kept = [r for r in refs if r.name not in skipped(w)] or refs
+        kept = [r for r in refs if r.name not in skipped(w)]  # all unticked: no picture
         by_set.setdefault(w.get("set") or "", []).append(
             {
                 "who": w.get("who", ""),
@@ -78,19 +78,22 @@ def add_routes(
         )
 
     @app.get("/export/download", response_class=HTMLResponse)
-    def export_download(request: Request, set: str = ""):  # pylint: disable=redefined-builtin
+    def export_download(
+        request: Request, set: str | None = None  # pylint: disable=redefined-builtin
+    ):
         wants = db.wants()
-        if set and not any(w.get("set") == set for w in wants):
-            raise HTTPException(404, "no wants in that set")
-        if set:
-            wants = [w for w in wants if w.get("set") == set]
+        if set is not None:  # ?set= (empty) is the wants with no set, not every set
+            wants = [w for w in wants if (w.get("set") or "") == set]
+            if not wants:
+                raise HTTPException(404, "no wants in that set")
         groups = checklist(wants, db.get(set_order, []), refs_dir, skipped)
         today = dt.date.today().isoformat()
-        name = re.sub(r"[^A-Za-z0-9-]+", "-", set or "all-sets").strip("-") or "all-sets"
+        label = "all-sets" if set is None else set or "no-set"
+        name = re.sub(r"[^A-Za-z0-9-]+", "-", label).strip("-") or "set"
         resp = tpl.TemplateResponse(
             request,
             "export_file.html",
-            {"groups": groups, "today": today, "only": set},
+            {"groups": groups, "today": today, "only": "" if set is None else set or "No set"},
         )
         resp.headers["content-disposition"] = (
             f'attachment; filename="card-wants-{name}-{today}.html"'

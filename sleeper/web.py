@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Red
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import match, notify, photos, summary, sweep, value
+from . import export, match, notify, photos, summary, sweep, value
 from .config import Settings
 from .db import DB
 from .groups import GROUPS, grouped, moved, ordered_sets
@@ -563,6 +563,8 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         )
 
     # --- wants ---
+    export.add_routes(app, db, s.refs_dir, tpl, SET_ORDER, lambda w: set_of(w.get("skip")))
+
     @app.get("/wants", response_class=HTMLResponse)
     def wants_page(request: Request, set: str = "", view: str = "cards"):
         wants = db.wants()

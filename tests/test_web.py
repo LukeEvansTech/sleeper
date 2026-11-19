@@ -858,3 +858,51 @@ def test_set_order():
 
     rows = [{"v": V(), "want": {"set": s}, "n": i} for i, s in enumerate(["EVA", "FIN"])]
     assert [t for t, _ in grouped(rows, "set", lambda r: r["n"], ["FIN", "EVA"])] == ["FIN", "EVA"]
+
+
+def test_export_checklist(env):
+    import cv2  # pylint: disable=import-outside-toplevel
+    import numpy as np  # pylint: disable=import-outside-toplevel
+
+    s, db, client = env
+    s.refs_dir.mkdir(parents=True, exist_ok=True)
+    cv2.imwrite(str(s.refs_dir / "rei.jpg"), np.full((700, 500, 3), 200, np.uint8))
+    client.post(
+        "/api/import",
+        json={
+            "wants": [
+                {
+                    "set": "EVA",
+                    "who": "Rei",
+                    "q": "r",
+                    "cards": "UE15BT/EVA-1-005_p1 SR★★",
+                    "refs": ["rei.jpg"],
+                },
+                {"set": "FIN", "who": "Cloud", "q": "c", "max": {"any": 70}},
+                {"set": "FIN", "who": "Paused one", "q": "p"},
+            ]
+        },
+    )
+    db.run("UPDATE wants SET enabled = 0 WHERE id = 3")
+    page = client.get("/export").text
+    assert "/export/download?set=EVA" in page and "2 cards" in page
+    r = client.get("/export/download?set=EVA")
+    assert r.status_code == 200
+    assert 'filename="card-wants-EVA-' in r.headers["content-disposition"]
+    assert "data:image/jpeg;base64," in r.text and "UE15BT/EVA-1-005_p1 SR★★" in r.text
+    every = client.get("/export/download").text
+    assert "Cloud" in every and "Paused one" not in every and "$70" not in every
+    assert client.get("/export/download?set=NOPE").status_code == 404
+    client.post("/api/import", json={"wants": [{"who": "Setless", "q": "s", "refs": ["rei.jpg"]}]})
+    setless = client.get("/export/download?set=")
+    assert "Setless" in setless.text and "Cloud" not in setless.text
+    assert 'filename="card-wants-no-set-' in setless.headers["content-disposition"]
+    # a want whose every picture is unticked exports with no picture rather than a rejected one
+    db.run("UPDATE wants SET spec = json_set(spec, '$.skip', json('[\"rei.jpg\"]')) WHERE id = 4")
+    assert "data:image" not in client.get("/export/download?set=").text
+    cv2.imwrite(str(s.refs_dir.parent / "outside.jpg"), np.full((70, 50, 3), 9, np.uint8))
+    client.post(
+        "/api/import",
+        json={"wants": [{"set": "X", "who": "Escape", "q": "e", "refs": ["../outside.jpg"]}]},
+    )
+    assert "data:image" not in client.get("/export/download?set=X").text

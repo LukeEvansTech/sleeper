@@ -1609,3 +1609,24 @@ kbd {
 .hindsight-lost b {
   color: var(--high);
 }
+
+/* export: one row per set with its download */
+.export-list {
+  display: grid;
+  gap: 8px;
+  max-width: 560px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.export-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}

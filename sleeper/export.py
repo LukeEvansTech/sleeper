@@ -37,7 +37,7 @@ SET_NAMES = {
     "LTR": "The Lord of the Rings, main set",
     "LTC": "The Lord of the Rings Commander",
 }
-UA_SET = re.compile(r"^U([AE])(\d+)(BT|ST)$")  # Union Arena: UA Japanese, UE English
+UA_SET = re.compile(r"^U([AE])(\d+)(BT|ST)$")  # Union Arena: Japanese (A) or English (E) prints
 NUMBER = re.compile(r"#\s*0*(\d+)|-(\d+)(?:_|\s|$)")
 THUMB_W = 240  # px: sharp enough to recognise the art, small enough for a few hundred cards
 
@@ -82,7 +82,7 @@ def set_name(code: str) -> str:
 
 
 def number(w: dict) -> int:
-    """The collector number of a want's card, for sorting; very large when it has none."""
+    """The collector number of the card a want is after, for sorting; very large when it has none."""
     for text in (str(w.get("who") or ""), str(w.get("cards") or "")):
         m = NUMBER.search(text)
         if m:
@@ -115,9 +115,9 @@ def checklist(
     home = refs_dir.resolve()  # a ref naming a path outside the refs folder is never read
     groups = []
     for series in ordered_sets({x for x, _ in by_code}, order):
-        codes = sorted(c for x, c in by_code if x == series)
-        codes.sort(key=lambda c: c != series)  # the series' own main set first
-        for code in codes:
+        # the series' own main set first, then the rest by code
+        codes = sorted((c != series, c) for x, c in by_code if x == series)
+        for _, code in codes:
             cards = []
             for w in sorted(by_code[(series, code)], key=lambda w: (number(w), w.get("who", ""))):
                 refs = [r for r in photos.refs_for(w, refs_dir) if r.resolve().is_relative_to(home)]

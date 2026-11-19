@@ -28,7 +28,7 @@ UA_CODE = re.compile(r"^\s*([A-Z0-9]+)/")
 # What a print code means to someone holding the card: the set, and where its cards come from.
 SET_NAMES = {
     "FIN": "Final Fantasy, main set (play and collector boosters)",
-    "FIC": "Final Fantasy Commander (Commander decks and collector boosters only)",
+    "FIC": "Final Fantasy Commander (Commander decks, collector boosters, bundles; not play boosters)",
     "FCA": "Final Fantasy Through the Ages (one in some play boosters)",
     "SLD": "Secret Lair (sold direct, never in boosters)",
     "TLA": "Avatar: The Last Airbender, main set",
@@ -39,7 +39,7 @@ SET_NAMES = {
 }
 UA_SET = re.compile(r"^U([AE])(\d+)(BT|ST)$")  # Union Arena: Japanese (A) or English (E) prints
 MTG_NUMBER = re.compile(r"#\s*0*(\d+)")  # "Summon: Anima FIN #0364"
-UA_NUMBER = re.compile(r"/[A-Z0-9]+-[^-\s]+-0*(\d+)")  # "UE15BT/EVA-1-005_p1"
+UA_NUMBER = re.compile(r"(?:/[A-Z0-9]+-[^-\s]+-|^\s*)0*(\d+)")  # "UE15BT/EVA-1-005_p1", "011"
 THUMB_W = 240  # px: sharp enough to recognise the art, small enough for a few hundred cards
 
 

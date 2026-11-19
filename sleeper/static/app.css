@@ -965,6 +965,11 @@ textarea {
   opacity: 0.55;
 }
 
+.want-group,
+.set-row th {
+  scroll-margin-top: 16px;
+}
+
 /* the wants page groups cards by set; the listings page by the chosen grouping */
 .deal-group + .deal-group,
 .want-group + .want-group {
@@ -974,11 +979,6 @@ textarea {
 .deal-group h2,
 .want-group h2 {
   margin-bottom: 12px;
-}
-
-.want-group,
-.set-row th {
-  scroll-margin-top: 16px;
 }
 
 .group-head {

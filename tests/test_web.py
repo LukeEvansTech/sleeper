@@ -309,6 +309,11 @@ def test_wants_cards_view_art_picker_and_defaults(env):
     page = client.get("/wants")
     assert "/refs/a.jpg" in page.text and "2 of 2 arts" in page.text
     assert "<table" in client.get("/wants?view=table").text
+    client.post("/api/import", json={"wants": [{"set": "FMA", "who": "Scar", "q": "s"}]})
+    grouped = client.get("/wants").text
+    assert grouped.index('id="set-dbs-h"') < grouped.index("Vegito") < grouped.index('id="set-fma-h"')
+    assert grouped.index('id="set-fma-h"') < grouped.index("Scar")
+    assert 'id="set-fma"' in client.get("/wants?view=table").text
     form = client.get("/wants/1").text
     assert 'name="keep" value="b.jpg"' in form
     r = client.post(

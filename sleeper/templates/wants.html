@@ -16,8 +16,13 @@
   </span>
 </nav>
 {% if view == 'cards' %}
+{% for g in wants | groupby('set') %}
+{% set on = g.list | selectattr('_enabled') | list %}
+{% set off = g.list | rejectattr('_enabled') | list %}
+<section class="want-group" id="set-{{ g.grouper | lower }}" aria-labelledby="set-{{ g.grouper | lower }}-h">
+<h2 id="set-{{ g.grouper | lower }}-h">{{ g.grouper or 'No set' }} <span class="muted small">{{ on | length }} on{% if off %}, {{ off | length }} paused{% endif %}</span></h2>
 <div class="grid">
-  {% for w in wants %}
+  {% for w in on + off %}
   {% set c = counts.get(w._id, (0, 0)) %}
   {% set t = thumbs.get(w._id) %}
   <article class="tile want-tile{{ ' off' if not w._enabled }}{{ ' has-deals' if c[1] }}">
@@ -38,10 +43,14 @@
   </article>
   {% endfor %}
 </div>
+</section>
+{% endfor %}
 {% else %}
 <table class="list">
   <tr><th>Set</th><th>Card</th><th>PSA ceiling</th><th>Raw ceiling</th><th>Live</th><th>Deals</th><th></th></tr>
-  {% for w in wants %}
+  {% for g in wants | groupby('set') %}
+  <tr class="set-row"><th colspan="7" scope="colgroup" id="set-{{ g.grouper | lower }}">{{ g.grouper or 'No set' }} <span class="muted small">{{ g.list | length }}</span></th></tr>
+  {% for w in (g.list | selectattr('_enabled') | list) + (g.list | rejectattr('_enabled') | list) %}
   {% set c = counts.get(w._id, (0, 0)) %}
   <tr class="{{ '' if w._enabled else 'off' }}">
     <td>{{ w.set }}</td>
@@ -52,6 +61,7 @@
     <td><a href="/?want={{ w._id }}&amp;show=deals">{{ c[1] or 0 }}</a></td>
     <td>{{ '' if w._enabled else 'paused' }}</td>
   </tr>
+  {% endfor %}
   {% endfor %}
 </table>
 {% endif %}

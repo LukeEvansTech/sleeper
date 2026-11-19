@@ -965,6 +965,21 @@ textarea {
   opacity: 0.55;
 }
 
+/* the wants page groups cards by set */
+.want-group + .want-group {
+  margin-top: 32px;
+}
+
+.want-group h2 {
+  margin-bottom: 12px;
+  scroll-margin-top: 16px;
+}
+
+.list .set-row th {
+  padding-top: 20px;
+  text-align: left;
+}
+
 .want-tile .noart {
   display: grid;
   place-items: center;

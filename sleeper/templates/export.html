@@ -15,7 +15,7 @@
       <strong>{{ series or 'No set' }}</strong>
       {% for pick, n in codes %}
       {% set code = pick.split(':', 1)[1] %}
-      <label class="chip-check"><input type="checkbox" name="code" value="{{ pick }}" id="code-{{ pick | replace(':', '-') or 'none' }}"{{ ' checked' if not codes_on or pick in codes_on }}> {{ code or 'No code' }} <span class="n">{{ n }}</span></label>
+      <label class="chip-check"><input type="checkbox" name="code" value="{{ pick }}" id="code-{{ pick | replace(':', '-') or 'none' }}"{{ ' checked' if not codes_on or pick in codes_on }}> {{ code or 'No code' }} <span class="n">{{ n }}</span>{% if set_name(code) %}<span class="about">{{ set_name(code) }}</span>{% endif %}</label>
       {% endfor %}
     </div>
     {% endfor %}

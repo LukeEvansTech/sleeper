@@ -923,6 +923,24 @@ def test_export_checklist(env, monkeypatch):
         json={"wants": [{"set": "X", "who": "Escape", "q": "e", "refs": ["../outside.jpg"]}]},
     )
     assert "data:image" not in client.get("/export/download?code=X:X").text
+    # one section per print set, main set first, cards by number, with what each code means
+    page = client.get("/export").text
+    assert "Secret Lair (sold direct" in page and "Union Arena English booster 15" in page
+    fin = client.get("/export/download?code=FIN:FIN&code=FIN:SLD").text
+    assert fin.index(">FIN <") < fin.index(">FIN: SLD <")
+    assert fin.index("Summon: Anima") < fin.index("Kefka FIN #543")
+
+
+def test_set_name_and_number():
+    from sleeper.export import number, set_name  # pylint: disable=import-outside-toplevel
+
+    assert set_name("UA15BT") == "Union Arena Japanese booster 15" and set_name("ZZZ") == ""
+    assert number({"who": "Summon: Anima FIN #0364"}) == 364
+    assert number({"who": "Rei", "cards": "UE15BT/EVA-1-005_p1 SR★★"}) == 5
+    assert number({"who": "Vegito SPR"}) > 10**8
+    assert number({"who": "Production Model-02", "cards": "UE15BT/EVA-1-082_p1 SR★"}) == 82
+    assert number({"who": "Asuka", "cards": "011"}) == 11
+    assert number({"who": "Rei", "cards": "EVA-1-005"}) == 5
 
 
 def test_print_set():

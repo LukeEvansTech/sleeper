@@ -20,11 +20,26 @@ from fastapi.templating import Jinja2Templates
 from . import photos
 from .db import DB
 from .groups import ordered_sets, rarity
+from .match import card_numbers
 
 EXPORT_LAST = "export_last"  # kv: the print sets, treatments and format last exported
 # A Magic want names its print in its title, e.g. "Summon: Anima FIN #364" or "Yojimbo SLD #7004".
 MTG_CODE = re.compile(r"(?<![\w'])([A-Za-z]{3})\s*#\s*\w+")
 UA_CODE = re.compile(r"^\s*([A-Z0-9]+)/")
+# What a print code means to someone holding the card: the set, and where its cards come from.
+SET_NAMES = {
+    "FIN": "Final Fantasy, main set (play and collector boosters)",
+    "FIC": "Final Fantasy Commander (Commander decks, collector boosters, bundles; not play boosters)",
+    "FCA": "Final Fantasy Through the Ages (one in some play boosters)",
+    "SLD": "Secret Lair (sold direct, never in boosters)",
+    "TLA": "Avatar: The Last Airbender, main set",
+    "TLE": "Avatar: The Last Airbender Eternal",
+    "SPM": "Marvel's Spider-Man, main set",
+    "LTR": "The Lord of the Rings, main set",
+    "LTC": "The Lord of the Rings Commander",
+}
+UA_SET = re.compile(r"^U([AE])(\d+)(BT|ST)$")  # Union Arena: Japanese (A) or English (E) prints
+MTG_NUMBER = re.compile(r"#\s*0*(\d+)")  # "Summon: Anima FIN #0364"
 THUMB_W = 240  # px: sharp enough to recognise the art, small enough for a few hundred cards
 
 
@@ -53,6 +68,31 @@ def print_set(w: dict) -> str:
     return series
 
 
+def set_name(code: str) -> str:
+    """A plain description of a print code, or "" when it is not one we know."""
+    if code in SET_NAMES:
+        return SET_NAMES[code]
+    m = UA_SET.match(code)
+    if m:
+        lang = "Japanese" if m.group(1) == "A" else "English"
+        kind = "booster" if m.group(3) == "BT" else "starter deck"
+        return f"Union Arena {lang} {kind} {int(m.group(2))}"
+    if code in ("UEPR", "UAPR"):
+        return f"Union Arena {'English' if code == 'UEPR' else 'Japanese'} promo"
+    return ""
+
+
+def number(w: dict) -> int:
+    """The collector number of the card a want is after, for sorting; very large when it has none."""
+    listed = sorted(int(n) for n in card_numbers(str(w.get("cards") or "")) if n.isdigit())
+    if listed:  # the print code: "UE15BT/EVA-1-005_p1", "EVA-1-005", "011"
+        return listed[0]
+    m = MTG_NUMBER.search(str(w.get("who") or ""))
+    if m:
+        return int(m.group(1))
+    return 10**9
+
+
 def pick_id(w: dict) -> str:
     """The checkbox value for the print set of a want: series and code, as promos share UEPR."""
     return f"{w.get('set') or ''}:{print_set(w)}"
@@ -67,23 +107,34 @@ def chosen(w: dict, codes: set[str], kinds: set[str]) -> bool:
 
 def checklist(
     wants: list[dict], order: list[str], refs_dir: Path, skipped: Callable[[dict], set[str]]
-) -> list[tuple[str, list[dict]]]:
-    """Wants that are on, by set in the saved order, each with its first kept picture."""
-    by_set: dict[str, list[dict]] = {}
+) -> list[dict]:
+    """Wants that are on, one group per print set (series in the saved order, then code), each
+    card with its first kept picture, sorted by collector number."""
+    by_code: dict[tuple[str, str], list[dict]] = {}
     for w in wants:
         if not w.get("_enabled"):
             continue
-        home = refs_dir.resolve()  # a ref naming a path outside the refs folder is never read
-        refs = [r for r in photos.refs_for(w, refs_dir) if r.resolve().is_relative_to(home)]
-        kept = [r for r in refs if r.name not in skipped(w)]  # all unticked: no picture
-        by_set.setdefault(w.get("set") or "", []).append(
-            {
-                "who": w.get("who", ""),
-                "cards": w.get("cards", ""),
-                "img": thumb(kept[0]) if kept else "",
-            }
-        )
-    return [(x, by_set[x]) for x in ordered_sets(by_set, order)]
+        by_code.setdefault((w.get("set") or "", print_set(w)), []).append(w)
+    home = refs_dir.resolve()  # a ref naming a path outside the refs folder is never read
+    groups = []
+    for series in ordered_sets({x for x, _ in by_code}, order):
+        # the series' own main set first, then the rest by code
+        codes = sorted((c != series, c) for x, c in by_code if x == series)
+        for _, code in codes:
+            cards = []
+            for w in sorted(by_code[(series, code)], key=lambda w: (number(w), w.get("who", ""))):
+                refs = [r for r in photos.refs_for(w, refs_dir) if r.resolve().is_relative_to(home)]
+                kept = [r for r in refs if r.name not in skipped(w)]  # all unticked: no picture
+                cards.append(
+                    {
+                        "who": w.get("who", ""),
+                        "cards": w.get("cards", ""),
+                        "img": thumb(kept[0]) if kept else "",
+                    }
+                )
+            title = code if code == series or not series else f"{series}: {code}"
+            groups.append({"title": title or "No set", "about": set_name(code), "cards": cards})
+    return groups
 
 
 def pdf(html: str) -> bytes:
@@ -132,6 +183,7 @@ def add_routes(
                     for x in ordered_sets(codes, db.get(set_order, []))
                 ],
                 "kinds": sorted(kinds.items()),
+                "set_name": set_name,
                 "total": len(wants),
                 "codes_on": set(last.get("codes") or []),
                 "kinds_on": set(last.get("kinds") or []),

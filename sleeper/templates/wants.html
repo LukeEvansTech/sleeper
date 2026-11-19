@@ -49,7 +49,7 @@
 <table class="list">
   <tr><th>Set</th><th>Card</th><th>PSA ceiling</th><th>Raw ceiling</th><th>Live</th><th>Deals</th><th></th></tr>
   {% for g in wants | groupby('set') %}
-  <tr class="set-row"><th colspan="7" scope="colgroup" id="set-{{ g.grouper | lower }}">{{ g.grouper or 'No set' }} <span class="muted small">{{ g.list | length }}</span></th></tr>
+  <tr class="set-row"><th colspan="7" scope="colgroup" id="set-{{ g.grouper | lower }}-row">{{ g.grouper or 'No set' }} <span class="muted small">{{ g.list | length }}</span></th></tr>
   {% for w in (g.list | selectattr('_enabled') | list) + (g.list | rejectattr('_enabled') | list) %}
   {% set c = counts.get(w._id, (0, 0)) %}
   <tr class="{{ '' if w._enabled else 'off' }}">

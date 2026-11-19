@@ -41,7 +41,7 @@ def thumb(path: Path) -> str:
 
 
 def print_set(w: dict) -> str:
-    """The print set a want's card comes from: FIN, FIC, SLD, UE15BT, UEPR... else its series."""
+    """The print set the card of a want comes from: FIN, FIC, SLD, UE15BT, UEPR... else its series."""
     m = UA_CODE.match(str(w.get("cards") or ""))
     if m:
         return m.group(1).upper()

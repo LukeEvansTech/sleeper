@@ -7,7 +7,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sleeper import config, photos, sweep
 from sleeper.db import DB
-from sleeper.web import create_app, grouped, rarity
+from sleeper.groups import grouped, rarity
+from sleeper.web import create_app
 
 
 class FakeBrowser:

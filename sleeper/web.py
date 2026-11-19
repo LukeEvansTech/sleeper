@@ -19,9 +19,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from . import match, notify, photos, summary, sweep, value
-from .groups import GROUPS, grouped
 from .config import Settings
 from .db import DB
+from .groups import GROUPS, grouped
 
 HERE = Path(__file__).resolve().parent
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,120}$")

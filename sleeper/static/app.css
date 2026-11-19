@@ -965,11 +965,13 @@ textarea {
   opacity: 0.55;
 }
 
-/* the wants page groups cards by set */
+/* the wants page groups cards by set; the listings page by the chosen grouping */
+.deal-group + .deal-group,
 .want-group + .want-group {
   margin-top: 32px;
 }
 
+.deal-group h2,
 .want-group h2 {
   margin-bottom: 12px;
   scroll-margin-top: 16px;

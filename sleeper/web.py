@@ -88,6 +88,63 @@ BUY_FILTERS: dict[str, Callable[[dict], bool]] = {
     "auction": lambda r: bool(r["auction"]),
     "offers": lambda r: bool(r["obo"]),
 }
+RATING_LABELS = {
+    "great": "Great deals",
+    "good": "Good deals",
+    "unknown": "Not enough sales to rate",
+    "fair": "Fair prices",
+    "high": "Above the market",
+}
+# Union Arena rarity in a want's print list, e.g. "UE15BT/EVA-1-079_p2 SR★★"
+UA_RARITY = re.compile(r"\b(UR|SR|R|U|C|AP)(★*)(?=\s*(?:\(|,|$))")
+# Magic treatments, most specific first: a want names its print in its title.
+MTG_TREATMENTS = (
+    ("surge", "Surge foil"),
+    ("chocobo track", "Chocobo Track foil"),
+    ("neon ink", "Neon Ink foil"),
+    ("serialized", "Serialized"),
+    ("through the ages", "Through the Ages"),
+    ("secret lair", "Secret Lair"),
+    ("woodblock", "Woodblock"),
+    ("borderless", "Borderless"),
+)
+
+
+def rarity(w: dict) -> str:
+    """The rarity or print treatment a want's listings share, for grouping the listings page."""
+    m = UA_RARITY.search(str(w.get("cards") or ""))
+    if m:
+        return m.group(1) + m.group(2)
+    who = str(w.get("who") or "").lower()
+    return next((label for key, label in MTG_TREATMENTS if key in who), "Other")
+
+
+# How the listings page can group its cards: the label on the chip, and each row's group title.
+GROUPS: dict[str, tuple[str, Callable[[dict], str]]] = {
+    "rating": ("Deal rating", lambda r: RATING_LABELS.get(r["v"].rating, r["v"].rating.title())),
+    "set": ("Series", lambda r: r["want"].get("set") or "No set"),
+    "rarity": ("Rarity", lambda r: rarity(r["want"])),
+    "card": ("Card", lambda r: r["want"].get("who") or "Unnamed card"),
+    "none": ("None", lambda r: ""),
+}
+
+
+def grouped(rows: list[dict], by: str, sort_key: Callable[[dict], Any]) -> list[tuple[str, list]]:
+    """Rows split into titled groups, keeping their order inside each group.
+
+    Deal-rating groups run great to high; the others start with the group holding the best row
+    under the current sort, so the top of the page is still the top of the sort.
+    """
+    title = GROUPS[by][1]
+    out: dict[str, list] = {}
+    for r in rows:
+        out.setdefault(title(r), []).append(r)
+    if by == "rating":
+        order = {v: i for i, v in enumerate(RATING_LABELS.values())}
+        return sorted(out.items(), key=lambda g: order.get(g[0], len(order)))
+    return sorted(out.items(), key=lambda g: sort_key(g[1][0]))
+
+
 # The listings page's price slider: the same steps on every card, then "any price".
 PRICE_SCALE = (25, 50, 75, 100, 150, 200, 250, 300, 400, 500, 750, 1000, 1500, 2000, 3000, 5000)
 
@@ -384,6 +441,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         buy: str = "",
         sort: str = "deal",
         max: str = "",  # pylint: disable=redefined-builtin
+        group: str = "rating",
     ):
         sql = "SELECT * FROM listings WHERE active = 1"
         args: list = []
@@ -417,6 +475,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         }
         rows = [r for r in rows if (not kind or r["kind"] == kind) and BUY_FILTERS[buy](r)]
         rows.sort(key=SORTS[sort])
+        group = group if group in GROUPS else "rating"
         sets = sorted({w.get("set", "") for w in db.wants()})
         picker = card_index(show, want)
         last = db.one("SELECT * FROM runs ORDER BY id DESC LIMIT 1")
@@ -424,6 +483,9 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             request,
             "home.html",
             rows=rows[:400],
+            groups=grouped(rows[:400], group, SORTS[sort]),
+            group=group,
+            group_options=[(k, v[0]) for k, v in GROUPS.items()],
             total=len(rows),
             sets=sets,
             cur_set=set,

@@ -21,19 +21,28 @@ h2 { font-size: 20px; margin: 32px 0 12px; }
 .card .none { display: grid; place-items: center; color: var(--muted); font-size: 12px; }
 .name { font-weight: 600; font-size: 13px; margin: 8px 0 2px; overflow-wrap: anywhere; }
 .code { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
-@media print { body { background: #fff; color: #000; } .grid { grid-template-columns: repeat(5, 1fr); } h2 { break-before: auto; } }
+h2 .count { font-size: 14px; font-weight: 400; color: var(--muted); }
+.about { margin: -8px 0 12px; }
+@media print {
+  body { padding: 0; background: #fff; color: #000; }
+  .grid { grid-template-columns: repeat(5, 1fr); }
+  section + section { break-before: page; }
+  h2 { margin-top: 0; break-after: avoid; }
+  section:first-of-type h2 { margin-top: 24px; }
+}
 </style>
 </head>
 <body>
 <main>
 <h1>Cards to look for{% if only %}: {{ only }}{% endif %}</h1>
-<p class="muted">{% set n = namespace(c=0) %}{% for _, cards in groups %}{% set n.c = n.c + cards | length %}{% endfor %}{{ n.c }} card{{ 's' if n.c != 1 }}, as of {{ today }}. Match the picture and the code in the corner of the card.</p>
-{% if groups | length > 1 %}<ul class="jump">{% for name, cards in groups %}<li><a href="#set-{{ loop.index }}">{{ name or 'No set' }} ({{ cards | length }})</a></li>{% endfor %}</ul>{% endif %}
-{% for name, cards in groups %}
+<p class="muted">{% set n = namespace(c=0) %}{% for g in groups %}{% set n.c = n.c + g.cards | length %}{% endfor %}{{ n.c }} card{{ 's' if n.c != 1 }}, as of {{ today }}. Match the picture and the code in the corner of the card.</p>
+{% if groups | length > 1 %}<ul class="jump">{% for g in groups %}<li><a href="#set-{{ loop.index }}">{{ g.title }} ({{ g.cards | length }})</a></li>{% endfor %}</ul>{% endif %}
+{% for g in groups %}
 <section>
-<h2 id="set-{{ loop.index }}">{{ name or 'No set' }}</h2>
+<h2 id="set-{{ loop.index }}">{{ g.title }} <span class="count">{{ g.cards | length }} card{{ 's' if g.cards | length != 1 }}</span></h2>
+{% if g.about %}<p class="muted about">{{ g.about }}</p>{% endif %}
 <div class="grid">
-{% for c in cards %}
+{% for c in g.cards %}
 <div class="card">
   {% if c.img %}<img src="{{ c.img }}" alt="{{ c.who }}">{% else %}<span class="none">No picture</span>{% endif %}
   <p class="name">{{ c.who }}</p>

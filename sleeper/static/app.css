@@ -1656,3 +1656,12 @@ kbd {
   color: var(--muted);
   font-size: 0.85em;
 }
+
+.chip-check .about {
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
+.chip-check .about::before {
+  content: "· ";
+}

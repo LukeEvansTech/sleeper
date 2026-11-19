@@ -16,7 +16,7 @@
   </span>
 </nav>
 {% if view == 'cards' %}
-{% for g in wants | groupby('set') %}
+{% for g in wants | groupby('set', default='') %}
 {% set on = g.list | selectattr('_enabled') | list %}
 {% set off = g.list | rejectattr('_enabled') | list %}
 <section class="want-group" id="set-{{ g.grouper | lower }}" aria-labelledby="set-{{ g.grouper | lower }}-h">
@@ -48,7 +48,7 @@
 {% else %}
 <table class="list">
   <tr><th>Set</th><th>Card</th><th>PSA ceiling</th><th>Raw ceiling</th><th>Live</th><th>Deals</th><th></th></tr>
-  {% for g in wants | groupby('set') %}
+  {% for g in wants | groupby('set', default='') %}
   <tr class="set-row"><th colspan="7" scope="colgroup" id="set-{{ g.grouper | lower }}-row">{{ g.grouper or 'No set' }} <span class="muted small">{{ g.list | length }}</span></th></tr>
   {% for w in (g.list | selectattr('_enabled') | list) + (g.list | rejectattr('_enabled') | list) %}
   {% set c = counts.get(w._id, (0, 0)) %}

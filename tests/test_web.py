@@ -316,6 +316,10 @@ def test_wants_cards_view_art_picker_and_defaults(env):
     )
     assert grouped.index('id="set-fma-h"') < grouped.index("Scar")
     assert 'id="set-fma-row"' in client.get("/wants?view=table").text
+    client.post("/api/import", json={"wants": [{"who": "Setless", "q": "x"}]})  # set is optional
+    assert (
+        "No set" in client.get("/wants").text and "No set" in client.get("/wants?view=table").text
+    )
     form = client.get("/wants/1").text
     assert 'name="keep" value="b.jpg"' in form
     r = client.post(

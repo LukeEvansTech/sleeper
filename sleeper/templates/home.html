@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% macro qs(show_=show, kind_=kind, set_=cur_set, buy_=buy, sort_=sort, max_=price_max) -%}
-?show={{ show_ }}{% if max_ %}&amp;max={{ max_ }}{% endif %}{% if kind_ %}&amp;kind={{ kind_ }}{% endif %}{% if buy_ %}&amp;buy={{ buy_ }}{% endif %}{% if sort_ != 'deal' %}&amp;sort={{ sort_ }}{% endif %}{% if set_ %}&amp;set={{ set_ | urlencode }}{% endif %}{% if cur_want %}&amp;want={{ cur_want._id }}{% endif %}
+{% macro qs(show_=show, kind_=kind, set_=cur_set, buy_=buy, sort_=sort, max_=price_max, group_=group) -%}
+?show={{ show_ }}{% if group_ != 'rating' %}&amp;group={{ group_ }}{% endif %}{% if max_ %}&amp;max={{ max_ }}{% endif %}{% if kind_ %}&amp;kind={{ kind_ }}{% endif %}{% if buy_ %}&amp;buy={{ buy_ }}{% endif %}{% if sort_ != 'deal' %}&amp;sort={{ sort_ }}{% endif %}{% if set_ %}&amp;set={{ set_ | urlencode }}{% endif %}{% if cur_want %}&amp;want={{ cur_want._id }}{% endif %}
 {%- endmacro %}
 {% block title %}{{ cur_want.who if cur_want else ('Deals' if show == 'deals' else 'Live listings') }} · sleeper{% endblock %}
 {% block body %}
@@ -40,6 +40,10 @@
     <span class="tl" id="sort-l">Sort</span>
     {% for o, label in [('deal', 'Best'), ('price', 'Cheapest'), ('ending', 'Ending'), ('new', 'Newest')] %}<a href="{{ qs(sort_=o) }}" class="{{ 'on' if sort == o }}"{{ ' aria-current="true"' | safe if sort == o }}>{{ label }}</a>{% endfor %}
   </span>
+  <span class="toggle" role="group" aria-labelledby="group-l">
+    <span class="tl" id="group-l">Group by</span>
+    {% for o, label in group_options %}<a href="{{ qs(group_=o) }}" class="{{ 'on' if group == o }}"{{ ' aria-current="true"' | safe if group == o }}>{{ label }}</a>{% endfor %}
+  </span>
   {% if not cur_want %}
   <span class="toggle">
     <a href="{{ qs(set_='') }}" class="{{ 'on' if not cur_set }}">All sets</a>
@@ -52,6 +56,7 @@
   {% if kind %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
   {% if buy %}<input type="hidden" name="buy" value="{{ buy }}">{% endif %}
   {% if sort != 'deal' %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+  {% if group != 'rating' %}<input type="hidden" name="group" value="{{ group }}">{% endif %}
   {% if cur_set and not cur_want %}<input type="hidden" name="set" value="{{ cur_set }}">{% endif %}
   <label class="pick-card"><span class="tl">Card</span>
     <select name="want">
@@ -74,7 +79,16 @@
     <button>Apply</button>
   </noscript>
 </form>
+{% for title, items in groups %}
+<section class="deal-group"{% if title %} aria-label="{{ title }}"{% endif %}>
+{% if title %}<h2>{{ title }} <span class="muted small">{{ items | length }}</span></h2>{% endif %}
 <div class="grid">
-{% for r in rows %}{% include "_card.html" %}{% else %}<p class="muted empty">{% if kind or buy %}Nothing matches these filters. <a href="{{ qs(kind_='', buy_='') }}">Show graded and raw in any format</a>.{% elif show == 'deals' %}No deals right now. <a href="{{ qs(show_='all') }}">See every live listing</a> or raise a ceiling on the Wants page.{% else %}No live listings yet. The next sweep will look again.{% endif %}</p>{% endfor %}
+{% for r in items %}{% include "_card.html" %}{% endfor %}
 </div>
+</section>
+{% else %}
+<div class="grid">
+<p class="muted empty">{% if kind or buy %}Nothing matches these filters. <a href="{{ qs(kind_='', buy_='') }}">Show graded and raw in any format</a>.{% elif show == 'deals' %}No deals right now. <a href="{{ qs(show_='all') }}">See every live listing</a> or raise a ceiling on the Wants page.{% else %}No live listings yet. The next sweep will look again.{% endif %}</p>
+</div>
+{% endfor %}
 {% endblock %}

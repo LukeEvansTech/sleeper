@@ -21,6 +21,7 @@ from fastapi.templating import Jinja2Templates
 from . import match, notify, photos, summary, sweep, value
 from .config import Settings
 from .db import DB
+from .groups import GROUPS, grouped
 
 HERE = Path(__file__).resolve().parent
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,120}$")
@@ -384,6 +385,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         buy: str = "",
         sort: str = "deal",
         max: str = "",  # pylint: disable=redefined-builtin
+        group: str = "rating",
     ):
         sql = "SELECT * FROM listings WHERE active = 1"
         args: list = []
@@ -417,6 +419,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         }
         rows = [r for r in rows if (not kind or r["kind"] == kind) and BUY_FILTERS[buy](r)]
         rows.sort(key=SORTS[sort])
+        group = group if group in GROUPS else "rating"
         sets = sorted({w.get("set", "") for w in db.wants()})
         picker = card_index(show, want)
         last = db.one("SELECT * FROM runs ORDER BY id DESC LIMIT 1")
@@ -424,6 +427,9 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             request,
             "home.html",
             rows=rows[:400],
+            groups=grouped(rows[:400], group, SORTS[sort]),
+            group=group,
+            group_options=[(k, v[0]) for k, v in GROUPS.items()],
             total=len(rows),
             sets=sets,
             cur_set=set,

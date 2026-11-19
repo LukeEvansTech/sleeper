@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sleeper import config, photos, sweep
 from sleeper.db import DB
+from sleeper.groups import grouped, rarity
 from sleeper.web import create_app
 
 
@@ -74,6 +75,15 @@ def test_import_sweep_and_deal_page(env, monkeypatch):
     assert "Vegito" in page.text and "$656" in page.text
     assert "Max bid" in page.text and "<b>$1,144.36</b>" in page.text
     assert client.get("/").status_code == 200
+    # the listings page groups by deal rating unless asked otherwise; an unknown grouping falls back
+    every = client.get("/?show=all").text
+    assert '<section class="deal-group" aria-label="' in every and "Group by" in every
+    assert (
+        '<h2>DBS <span class="muted small">2</span></h2>' in client.get("/?show=all&group=set").text
+    )
+    assert "<h2>Vegito <span" in client.get("/?show=all&group=card").text
+    assert "<h2>" not in client.get("/?show=all&group=none").text.split("<main")[-1]
+    assert client.get("/?group=bogus").text == client.get("/").text
     assert client.get(f"/run/{run1}").status_code == 200
     assert client.get("/wants").status_code == 200
     assert client.get("/ops").status_code == 200
@@ -790,3 +800,32 @@ def test_raw_caution_shows_on_raw_tiles_deal_page_and_alert(env, monkeypatch):
     home = client.get("/").text
     assert 'class="caution"' in home
     assert "gem-low" in home and "4% gem rate" in home and "PSA pop 1/27" in home
+
+
+def test_rarity_and_grouping():
+    assert rarity({"cards": "UE15BT/EVA-1-079_p2 SR★★"}) == "SR★★"
+    assert rarity({"cards": "UEPR/EVA-1-079 UR"}) == "UR"
+    assert rarity({"who": "Kefka FIN #543 Borderless, Surge Foil"}) == "Surge foil"
+    assert rarity({"who": "Cloud FIN #375 Borderless"}) == "Borderless"
+    assert rarity({"who": "Vegito"}) == "Other"
+    two = {"cards": "UE09BT/FMA-1-090_p1 SR★, UE09BT/FMA-1-090_p2 SR★★"}
+    assert (
+        rarity(two, "2") == "SR★★" and rarity(two, "1") == "SR★" and rarity(two, "any") == "Mixed"
+    )
+
+    class V:  # pylint: disable=too-few-public-methods
+        def __init__(self, rating):
+            self.rating = rating
+
+    rows = [
+        {"v": V("fair"), "want": {"set": "FMA"}, "n": 1},
+        {"v": V("great"), "want": {"set": "EVA"}, "n": 2},
+        {"v": V("great"), "want": {"set": "FMA"}, "n": 3},
+    ]
+    by_rating = grouped(rows, "rating", lambda r: r["n"])
+    assert [(t, [r["n"] for r in rs]) for t, rs in by_rating] == [
+        ("Great deals", [2, 3]),
+        ("Fair prices", [1]),
+    ]
+    # other groupings start with the group holding the best row under the current sort
+    assert [t for t, _ in grouped(rows, "set", lambda r: r["n"])] == ["FMA", "EVA"]

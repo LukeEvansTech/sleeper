@@ -20,6 +20,7 @@ from fastapi.templating import Jinja2Templates
 from . import photos
 from .db import DB
 from .groups import ordered_sets, rarity
+from .match import card_numbers
 
 EXPORT_LAST = "export_last"  # kv: the print sets, treatments and format last exported
 # A Magic want names its print in its title, e.g. "Summon: Anima FIN #364" or "Yojimbo SLD #7004".
@@ -39,7 +40,6 @@ SET_NAMES = {
 }
 UA_SET = re.compile(r"^U([AE])(\d+)(BT|ST)$")  # Union Arena: Japanese (A) or English (E) prints
 MTG_NUMBER = re.compile(r"#\s*0*(\d+)")  # "Summon: Anima FIN #0364"
-UA_NUMBER = re.compile(r"(?:/[A-Z0-9]+-[^-\s]+-|^\s*)0*(\d+)")  # "UE15BT/EVA-1-005_p1", "011"
 THUMB_W = 240  # px: sharp enough to recognise the art, small enough for a few hundred cards
 
 
@@ -84,7 +84,10 @@ def set_name(code: str) -> str:
 
 def number(w: dict) -> int:
     """The collector number of the card a want is after, for sorting; very large when it has none."""
-    m = UA_NUMBER.search(str(w.get("cards") or "")) or MTG_NUMBER.search(str(w.get("who") or ""))
+    listed = sorted(int(n) for n in card_numbers(str(w.get("cards") or "")) if n.isdigit())
+    if listed:  # the print code: "UE15BT/EVA-1-005_p1", "EVA-1-005", "011"
+        return listed[0]
+    m = MTG_NUMBER.search(str(w.get("who") or ""))
     if m:
         return int(m.group(1))
     return 10**9

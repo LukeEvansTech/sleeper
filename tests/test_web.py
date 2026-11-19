@@ -940,6 +940,7 @@ def test_set_name_and_number():
     assert number({"who": "Vegito SPR"}) > 10**8
     assert number({"who": "Production Model-02", "cards": "UE15BT/EVA-1-082_p1 SR★"}) == 82
     assert number({"who": "Asuka", "cards": "011"}) == 11
+    assert number({"who": "Rei", "cards": "EVA-1-005"}) == 5
 
 
 def test_print_set():

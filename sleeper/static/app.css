@@ -1018,6 +1018,33 @@ textarea {
   font-stretch: 125%;
 }
 
+.want-id {
+  display: flex;
+  gap: 16px;
+  align-items: end;
+  min-width: 0;
+}
+
+.want-thumb {
+  flex: none;
+  width: 120px;
+}
+
+.want-thumb img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 488 / 680;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.18);
+}
+
+@media (width <= 600px) {
+  .want-thumb {
+    width: 84px;
+  }
+}
+
 .want-head .actions {
   display: flex;
   gap: 8px;

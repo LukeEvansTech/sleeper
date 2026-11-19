@@ -364,6 +364,8 @@ def test_wants_cards_view_art_picker_and_defaults(env):
     assert r.status_code == 303
     assert db.want(1)["skip"] == ["b.jpg"]
     assert "1 of 2 arts" in client.get("/wants").text
+    # a card's own listings page shows the card it looks for, leaving out unticked art
+    assert '<a class="want-thumb" href="/refs/a.jpg">' in client.get("/?want=1&show=all").text
     r = client.post(
         "/wants/defaults",
         data={"psa_1star_max": "70", "raw_1star_max": "$12"},

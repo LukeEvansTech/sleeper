@@ -6,10 +6,13 @@
 {% block body %}
 {% if cur_want %}
 <section class="head-row want-head">
-  <div>
-    <p class="muted small"><a href="/wants">Wants</a> / {{ cur_want.set }}</p>
-    <h1>{{ cur_want.who }}</h1>
-    <p class="muted">{{ total }} {{ 'deal' if show == 'deals' else 'live listing' }}{{ 's' if total != 1 }}{% if cur_want.cards %}. {{ cur_want.cards }}{% endif %}</p>
+  <div class="want-id">
+    {% if want_art %}<a class="want-thumb" href="/refs/{{ want_art }}"><img src="/refs/{{ want_art }}" alt="{{ cur_want.who }}, the card this want looks for"></a>{% endif %}
+    <div>
+      <p class="muted small"><a href="/wants">Wants</a> / {{ cur_want.set }}</p>
+      <h1>{{ cur_want.who }}</h1>
+      <p class="muted">{{ total }} {{ 'deal' if show == 'deals' else 'live listing' }}{{ 's' if total != 1 }}{% if cur_want.cards %}. {{ cur_want.cards }}{% endif %}</p>
+    </div>
   </div>
   <div class="actions">
     <a class="button" href="/wants/{{ cur_want._id }}">Edit want</a>

@@ -21,11 +21,12 @@ from fastapi.templating import Jinja2Templates
 from . import match, notify, photos, summary, sweep, value
 from .config import Settings
 from .db import DB
-from .groups import GROUPS, grouped
+from .groups import GROUPS, grouped, moved, ordered_sets
 
 HERE = Path(__file__).resolve().parent
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,120}$")
 RATING_ORDER = {"great": 0, "good": 1, "unknown": 2, "fair": 3, "high": 4}
+SET_ORDER = "set_order"  # kv: set names in the order the pages list them
 # A deal whose photo shows another card stays off the deals list, as it stays out of alerts.
 SHOWN = "coalesce(json_extract(art, '$.verdict'), '') != 'differs'"
 
@@ -420,14 +421,15 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         rows = [r for r in rows if (not kind or r["kind"] == kind) and BUY_FILTERS[buy](r)]
         rows.sort(key=SORTS[sort])
         group = group if group in GROUPS else "rating"
-        sets = sorted({w.get("set", "") for w in db.wants()})
+        set_order = db.get(SET_ORDER, [])
+        sets = ordered_sets((w.get("set", "") for w in db.wants()), set_order)
         picker = card_index(show, want)
         last = db.one("SELECT * FROM runs ORDER BY id DESC LIMIT 1")
         return page(
             request,
             "home.html",
             rows=rows[:400],
-            groups=grouped(rows[:400], group, SORTS[sort]),
+            groups=grouped(rows[:400], group, SORTS[sort], set_order),
             group=group,
             group_options=[(k, v[0]) for k, v in GROUPS.items()],
             total=len(rows),
@@ -570,7 +572,14 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         }
         if set:
             wants = [w for w in wants if w.get("set") == set]
-        sets = sorted({w.get("set", "") for w in db.wants()})
+        sets = ordered_sets((w.get("set", "") for w in db.wants()), db.get(SET_ORDER, []))
+        by_set: dict[str, list] = {}
+        for w in wants:
+            by_set.setdefault(w.get("set", ""), []).append(w)
+        # each set's wants that are on come first, then its paused ones
+        groups = [
+            (x, sorted(by_set[x], key=lambda w: not w.get("_enabled"))) for x in sets if x in by_set
+        ]
         thumbs = {}
         for w in wants:
             refs = photos.refs_for(w, s.refs_dir)
@@ -585,6 +594,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             request,
             "wants.html",
             wants=wants,
+            groups=groups,
             counts=counts,
             sets=sets,
             cur_set=set,
@@ -592,6 +602,17 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             thumbs=thumbs,
             defaults=db.defaults(),
         )
+
+    @app.post("/wants/sets/move")
+    async def wants_set_move(request: Request):
+        form = await request.form()
+        name, view = str(form.get("set", "")), str(form.get("view", "cards"))
+        step = {"up": -1, "down": 1}.get(str(form.get("dir", "")), 0)
+        sets = ordered_sets((w.get("set", "") for w in db.wants()), db.get(SET_ORDER, []))
+        db.put(SET_ORDER, moved(sets, name, step))
+        anchor = f"set-{name.lower()}" + ("-row" if view == "table" else "")
+        view = "table" if view == "table" else "cards"
+        return RedirectResponse(f"/wants?view={view}#{urllib.parse.quote(anchor)}", status_code=303)
 
     @app.post("/wants/defaults")
     async def wants_defaults(request: Request):

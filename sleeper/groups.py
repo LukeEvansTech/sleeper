@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
 RATING_LABELS = {
     "great": "Great deals",
@@ -54,11 +54,34 @@ GROUPS: dict[str, tuple[str, Callable[[dict], str]]] = {
 }
 
 
-def grouped(rows: list[dict], by: str, sort_key: Callable[[dict], Any]) -> list[tuple[str, list]]:
+def ordered_sets(sets: Iterable[str], order: list[str]) -> list[str]:
+    """Set names in the saved order; any set the order doesn't name follows, alphabetically."""
+    rank = {x: i for i, x in enumerate(order)}
+    return sorted(set(sets), key=lambda x: (rank.get(x, len(rank)), x))
+
+
+def moved(sets: list[str], name: str, step: int) -> list[str]:
+    """The set order with one set moved a place earlier (step -1) or later (step 1)."""
+    out = list(sets)
+    if name not in out:
+        return out
+    i = out.index(name)
+    j = max(0, min(len(out) - 1, i + step))
+    out[i], out[j] = out[j], out[i]
+    return out
+
+
+def grouped(
+    rows: list[dict],
+    by: str,
+    sort_key: Callable[[dict], Any],
+    set_order: list[str] | None = None,
+) -> list[tuple[str, list]]:
     """Rows split into titled groups, keeping their order inside each group.
 
-    Deal-rating groups run great to high; the others start with the group holding the best row
-    under the current sort, so the top of the page is still the top of the sort.
+    Deal-rating groups run great to high and series follow the saved set order; the others start
+    with the group holding the best row under the current sort, so the top of the page is still
+    the top of the sort.
     """
     title = GROUPS[by][1]
     out: dict[str, list] = {}
@@ -67,4 +90,8 @@ def grouped(rows: list[dict], by: str, sort_key: Callable[[dict], Any]) -> list[
     if by == "rating":
         order = {v: i for i, v in enumerate(RATING_LABELS.values())}
         return sorted(out.items(), key=lambda g: order.get(g[0], len(order)))
+    if by == "set" and set_order is not None:
+        names = ordered_sets((r["want"].get("set") or "" for r in rows), set_order)
+        rank = {GROUPS["set"][1]({"want": {"set": x}}): i for i, x in enumerate(names)}
+        return sorted(out.items(), key=lambda g: rank.get(g[0], len(rank)))
     return sorted(out.items(), key=lambda g: sort_key(g[1][0]))

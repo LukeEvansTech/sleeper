@@ -74,6 +74,7 @@ def test_new_view_and_json_api(env, monkeypatch):
     assert ids["333"]["gixen_url"] is None  # buy it now: nothing to snipe
     assert ids["333"]["first_seen"].startswith("2020-01-01T00:00:00")
     assert len(ids["333"]["first_seen"]) > 19  # carries its UTC offset
+    assert every["last_sweep"]["started"].endswith("+00:00")
 
     new = client.get("/api/v1/deals?show=new").json()
     assert new["sort"] == "new" and [d["item_id"] for d in new["deals"]] == ["111"]

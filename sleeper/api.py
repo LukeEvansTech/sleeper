@@ -47,6 +47,17 @@ def stamp(local: str | None) -> str | None:
         return None
 
 
+def utc(when: str | None) -> str | None:
+    """A timestamp SQLite wrote in UTC ('2026-11-04 09:10:00') as an ISO instant with its offset."""
+    if not when:
+        return None
+    try:
+        at = dt.datetime.fromisoformat(str(when))
+    except ValueError:
+        return None
+    return (at if at.tzinfo else at.replace(tzinfo=dt.timezone.utc)).isoformat(timespec="seconds")
+
+
 def image(src: str, size: int) -> str:
     return re.sub(r"s-l\d+\.", f"s-l{size}.", src or "")
 
@@ -201,7 +212,7 @@ def add_routes(  # pylint: disable=too-many-locals,too-many-statements
             "last_sweep": (
                 {
                     "status": last["status"],
-                    "started": last["started"],
+                    "started": utc(last["started"]),
                     "listings": last["listings"],
                 }
                 if last
@@ -252,7 +263,9 @@ def add_routes(  # pylint: disable=too-many-locals,too-many-statements
             ],
             "others": [tile(x, since) for x in c["others"]],
             "links": [{"label": label, "url": url} for label, url in c["links"]],
-            "alerted": ({"sent": alerted["sent"], "price": alerted["usd"]} if alerted else None),
+            "alerted": (
+                {"sent": utc(alerted["sent"]), "price": alerted["usd"]} if alerted else None
+            ),
         }
 
     @app.post("/api/v1/deals/{item_id}/{kind}/block")

@@ -16,7 +16,7 @@ _Avoid_: Item, result, lot
 **Deal**:
 A listing under the ceiling that is also worth its price: it beats recent sold prices for the
 card, or it is a raw copy worth buying to grade. A card with no sold prices yet counts on its
-ceiling alone.
+ceiling alone, except a running auction, which waits until its last six hours.
 _Avoid_: Bargain, hit, match
 
 **New deal**:

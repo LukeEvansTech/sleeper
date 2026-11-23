@@ -2,7 +2,7 @@
 {% macro qs(show_=show, kind_=kind, set_=cur_set, buy_=buy, sort_=sort, max_=price_max, group_=group) -%}
 ?show={{ show_ }}{% if group_ != 'rating' %}&amp;group={{ group_ }}{% endif %}{% if max_ %}&amp;max={{ max_ }}{% endif %}{% if kind_ %}&amp;kind={{ kind_ }}{% endif %}{% if buy_ %}&amp;buy={{ buy_ }}{% endif %}{% if sort_ != 'deal' %}&amp;sort={{ sort_ }}{% endif %}{% if set_ %}&amp;set={{ set_ | urlencode }}{% endif %}{% if cur_want %}&amp;want={{ cur_want._id }}{% endif %}
 {%- endmacro %}
-{% block title %}{{ cur_want.who if cur_want else ('Deals' if show == 'deals' else 'Live listings') }} · sleeper{% endblock %}
+{% block title %}{{ cur_want.who if cur_want else ('Deals' if show == 'deals' else 'New deals' if show == 'new' else 'Live listings') }} · sleeper{% endblock %}
 {% block body %}
 {% if cur_want %}
 <section class="head-row want-head">
@@ -11,7 +11,7 @@
     <div>
       <p class="muted small"><a href="/wants">Wants</a> / {{ cur_want.set }}</p>
       <h1>{{ cur_want.who }}</h1>
-      <p class="muted">{{ total }} {{ 'deal' if show == 'deals' else 'live listing' }}{{ 's' if total != 1 }}{% if cur_want.cards %}. {{ cur_want.cards }}{% endif %}</p>
+      <p class="muted">{{ total }} {{ 'deal' if show == 'deals' else 'new deal' if show == 'new' else 'live listing' }}{{ 's' if total != 1 }}{% if cur_want.cards %}. {{ cur_want.cards }}{% endif %}</p>
     </div>
   </div>
   <div class="actions">
@@ -21,7 +21,7 @@
 </section>
 {% else %}
 <section class="head-row">
-  <h1>{% if show == 'deals' %}{{ total }} deal{{ 's' if total != 1 }}{% else %}{{ total }} live listing{{ 's' if total != 1 }}{% endif %}</h1>
+  <h1>{% if show == 'deals' %}{{ total }} deal{{ 's' if total != 1 }}{% elif show == 'new' %}{{ total }} new deal{{ 's' if total != 1 }}{% else %}{{ total }} live listing{{ 's' if total != 1 }}{% endif %}</h1>
   <p class="muted small">
     {% if running %}A sweep is running now. {% endif %}
     {% if last %}Last sweep {{ last.status }}, started {{ last.started }} UTC: {{ last.listings }} listings checked.{% else %}No sweep yet: <a href="/ops">start one</a> or add cards.{% endif %}
@@ -30,8 +30,11 @@
 {% endif %}
 <nav class="filters" aria-label="Filter listings">
   <span class="toggle">
-    <a href="{{ qs(show_='deals') }}" class="{{ 'on' if show == 'deals' }}">Deals</a>
-    <a href="{{ qs(show_='all') }}" class="{{ 'on' if show == 'all' }}">All live</a>
+    {# New opens newest first; leaving it drops that sort again #}
+    {% set back = 'deal' if show == 'new' and sort == 'new' else sort %}
+    <a href="{{ qs(show_='deals', sort_=back) }}" class="{{ 'on' if show == 'deals' }}">Deals</a>
+    <a href="{{ qs(show_='new', sort_='new') }}" class="{{ 'on' if show == 'new' }}" title="Deals first seen in the last {{ new_hours }} hours">New</a>
+    <a href="{{ qs(show_='all', sort_=back) }}" class="{{ 'on' if show == 'all' }}">All live</a>
   </span>
   <span class="toggle" role="group" aria-label="Graded or raw">
     {% for k, label in [('', 'All'), ('psa', 'Graded'), ('raw', 'Raw')] %}<a href="{{ qs(kind_=k) }}" class="{{ 'on' if kind == k }}"{{ ' aria-current="true"' | safe if kind == k }}>{{ label }} <span class="n">{{ counts.kind[k] }}</span></a>{% endfor %}
@@ -96,7 +99,7 @@
 </section>
 {% else %}
 <div class="grid">
-<p class="muted empty">{% if kind or buy %}Nothing matches these filters. <a href="{{ qs(kind_='', buy_='') }}">Show graded and raw in any format</a>.{% elif show == 'deals' %}No deals right now. <a href="{{ qs(show_='all') }}">See every live listing</a> or raise a ceiling on the Wants page.{% else %}No live listings yet. The next sweep will look again.{% endif %}</p>
+<p class="muted empty">{% if kind or buy %}Nothing matches these filters. <a href="{{ qs(kind_='', buy_='') }}">Show graded and raw in any format</a>.{% elif show == 'new' %}No new deals in the last {{ new_hours }} hours. <a href="{{ qs(show_='deals', sort_='deal') }}">See every deal</a>.{% elif show == 'deals' %}No deals right now. <a href="{{ qs(show_='all') }}">See every live listing</a> or raise a ceiling on the Wants page.{% else %}No live listings yet. The next sweep will look again.{% endif %}</p>
 </div>
 {% endfor %}
 {% endblock %}

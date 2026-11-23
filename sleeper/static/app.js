@@ -38,6 +38,17 @@
     });
   }
 
+  // --- the folded filters open again once the window is wider than a phone ---
+  const fold = document.querySelector("details.filter-more");
+  if (fold) {
+    const wide = window.matchMedia("(width > 600px)");
+    const reopen = () => {
+      if (wide.matches) fold.open = true;
+    };
+    wide.addEventListener("change", reopen);
+    reopen();
+  }
+
   // --- quick search ---
   const dlg = document.querySelector("dialog.palette");
   if (!dlg) return;

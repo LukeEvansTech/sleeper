@@ -38,7 +38,7 @@
   </span>
   {% set extra = (1 if buy else 0) + (1 if sort != 'deal' else 0) + (1 if group != 'rating' else 0) + (1 if cur_set and not cur_want else 0) %}
   <details class="filter-more" open>
-    <summary>More filters{% if extra %} <span class="n">{{ extra }} on</span>{% endif %}</summary>
+    <summary>More filters{% if extra %} <span class="on-count">{{ extra }} on</span>{% endif %}</summary>
     <span class="toggle" role="group" aria-label="Buying format">
       {% for b, label in [('', 'Any'), ('bin', 'Buy now'), ('auction', 'Auction'), ('offers', 'Offers')] %}<a href="{{ qs(buy_=b) }}" class="{{ 'on' if buy == b }}"{{ ' aria-current="true"' | safe if buy == b }}>{{ label }} <span class="n">{{ counts.buy[b] }}</span></a>{% endfor %}
     </span>

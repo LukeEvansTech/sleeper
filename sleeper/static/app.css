@@ -382,7 +382,7 @@ button,
   mask: url("/static/icons/sliders-horizontal.svg") center / contain no-repeat;
 }
 
-.filter-more > summary .n {
+.filter-more > summary .on-count {
   color: var(--accent);
 }
 

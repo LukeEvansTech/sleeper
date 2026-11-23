@@ -14,8 +14,9 @@ One copy of a wanted card for sale on eBay, as either a graded slab or a raw car
 _Avoid_: Item, result, lot
 
 **Deal**:
-A listing under the ceiling whose landed price also beats recent sold prices for the card, or a
-raw copy that is worth buying to grade. Under the ceiling alone is not enough.
+A listing under the ceiling that is also worth its price: it beats recent sold prices for the
+card, or it is a raw copy worth buying to grade. A card with no sold prices yet counts on its
+ceiling alone.
 _Avoid_: Bargain, hit, match
 
 **New deal**:
@@ -41,7 +42,8 @@ collector adds each one; Sleeper never places it.
 _Avoid_: Autobid, proxy bid
 
 **Block**:
-The collector's decision that a listing is never to be shown or alerted again.
+The collector's decision to take a listing off the live lists and never be alerted to it again.
+A blocked listing that had already ended stays on the Ended page.
 _Avoid_: Hide, dismiss, ignore
 
 **Sweep**:

@@ -102,7 +102,7 @@ uid 65532 and works with a read-only root filesystem as long as `/tmp` is writab
 | `PUT /api/refs/<name>`                   | Upload one official-art image (JPEG or PNG).                                                                                    |
 | `GET /api/v1/deals`                      | Live listings as JSON. `show` is `deals`, `new` or `all`; `kind`, `buy`, `sort`, `max`, `set` and `want` filter as on the page. |
 | `GET /api/v1/deals/<item>/<kind>`        | One listing with its reasons, photos, sold prices and the card's other listings.                                                |
-| `POST /api/v1/deals/<item>/<kind>/block` | Take a listing off every list. Optional body `{reason}`.                                                                        |
+| `POST /api/v1/deals/<item>/<kind>/block` | Take a listing off the live lists. Optional body `{reason}`.                                                                    |
 | `GET /api/v1/ended`                      | Deals whose listing has ended, with how each finished.                                                                          |
 | `GET /api/v1/wants`                      | Every want by set, with its live listing and deal counts.                                                                       |
 | `GET /health`                            | Process is up.                                                                                                                  |

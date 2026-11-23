@@ -84,7 +84,8 @@ def listing_json(r: dict, since: str, gixen: Callable[[str, float | None], str])
         "rating": v.rating,
         "headline": v.headline,
         "advice": v.advice,
-        "deal": bool(r.get("deal")),
+        # a deal whose photo shows another card is off the deals list, so it is no deal here either
+        "deal": bool(r.get("deal")) and (r.get("artd") or {}).get("verdict") != "differs",
         "steal": bool(v.steal),
         "auction": bool(r.get("auction")),
         "offers": bool(r.get("obo")),
@@ -256,7 +257,7 @@ def add_routes(  # pylint: disable=too-many-locals,too-many-statements
 
     @app.post("/api/v1/deals/{item_id}/{kind}/block")
     async def block(item_id: str, kind: str, request: Request) -> dict:
-        """Take a listing off every list for good. Body: {"reason": "..."} (optional)."""
+        """Take a listing off the live lists for good. Body: {"reason": "..."} (optional)."""
         views.deal(item_id, kind)  # 404 for a listing sleeper never saw
         try:
             body = await request.json()
@@ -303,7 +304,16 @@ def add_routes(  # pylint: disable=too-many-locals,too-many-statements
                     "image": f"/refs/{kept[0].name}" if kept else "",
                     "live": n,
                     "deals": d,
-                    "ceilings": w.get("max") or {},
+                    # by star bucket; raw is null when raw copies are switched off for this want
+                    "ceilings": {
+                        "graded": w.get("max") or {},
+                        "raw": (
+                            None
+                            if w.get("raw") is False
+                            else (w.get("rawmax") or {})
+                            | ({"any": w["raw_max"]} if w.get("raw_max") else {})
+                        ),
+                    },
                 }
             )
         order = ordered_sets(by_set, db.get(SET_ORDER, []))

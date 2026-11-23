@@ -8,7 +8,7 @@
   const current = () =>
     root.dataset.theme || (prefersDark() ? "dark" : "light");
   const label = (btn) => {
-    btn.textContent = current() === "dark" ? "Light" : "Dark";
+    btn.setAttribute("aria-pressed", String(current() === "dark"));
   };
   document.querySelectorAll("[data-theme-toggle]").forEach((btn) => {
     label(btn);
@@ -23,6 +23,31 @@
       label(btn);
     });
   });
+
+  // --- the phone's More menu closes on a tap elsewhere or Escape ---
+  const more = document.querySelector("details.more");
+  if (more) {
+    document.addEventListener("click", (e) => {
+      if (more.open && !more.contains(e.target)) more.open = false;
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && more.open) {
+        more.open = false;
+        more.querySelector("summary").focus();
+      }
+    });
+  }
+
+  // --- the folded filters open again once the window is wider than a phone ---
+  const fold = document.querySelector("details.filter-more");
+  if (fold) {
+    const wide = window.matchMedia("(width > 600px)");
+    const reopen = () => {
+      if (wide.matches) fold.open = true;
+    };
+    wide.addEventListener("change", reopen);
+    reopen();
+  }
 
   // --- quick search ---
   const dlg = document.querySelector("dialog.palette");

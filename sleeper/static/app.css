@@ -100,8 +100,11 @@ html {
   scroll-padding-top: 76px; /* the sticky header never hides a focused control */
 }
 
+/* viewport-fit=cover lets the phone tab bar reach the foot; keep content clear of a landscape notch. */
 body {
   margin: 0;
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
   background: var(--bg);
   color: var(--ink);
   font-family: Archivo, system-ui, sans-serif;
@@ -344,6 +347,68 @@ button,
 .danger {
   color: var(--high);
   border-color: var(--high);
+}
+
+/* Buying format, sort, grouping and set: inline on a wide screen, folded behind one row on a phone.
+   The row stays visible whenever the fold is closed, so a closed fold can always be reopened. */
+.filter-more {
+  display: contents;
+}
+
+.filter-more > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 99px;
+  background: var(--well);
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.92rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.filter-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.filter-more > summary::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  background: currentcolor;
+  mask: url("/static/icons/sliders-horizontal.svg") center / contain no-repeat;
+}
+
+.filter-more > summary .on-count {
+  color: var(--accent);
+}
+
+@media (width > 600px) {
+  .filter-more[open] > summary {
+    display: none;
+  }
+
+  /* Flatten the browser's own wrapper too, so each pill row is a flex item of .filters. */
+  .filter-more::details-content {
+    display: contents;
+  }
+}
+
+@media (width <= 600px) {
+  .filter-more {
+    display: block;
+    width: 100%;
+  }
+
+  /* Block children of a block wrapper, so each pill row scrolls inside the page width. */
+  .filter-more > .toggle {
+    display: flex;
+    width: fit-content;
+    margin-top: 8px;
+  }
 }
 
 /* Segmented control: plain links, so filters work without script. */
@@ -1243,12 +1308,28 @@ textarea {
 
 /* --- header --- */
 
+.skip {
+  position: absolute;
+  left: 12px;
+  top: -60px;
+  z-index: 30;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.skip:focus {
+  top: 10px;
+}
+
 .top {
   position: sticky;
   top: 0;
   z-index: 10;
   display: flex;
-  flex-wrap: wrap;
   gap: 10px 22px;
   align-items: center;
   padding: 10px 20px;
@@ -1257,13 +1338,23 @@ textarea {
   border-bottom: 1px solid var(--line);
 }
 
+/* The mark: a slab with a foil moon in its window, the card nobody has noticed yet. */
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
   color: var(--ink);
   text-decoration: none;
   font-size: 1.35rem;
   font-stretch: 125%;
   font-weight: 900;
   letter-spacing: -0.04em;
+}
+
+.brand-mark {
+  display: block;
+  width: 22px;
+  height: 34px;
 }
 
 .top nav {
@@ -1315,6 +1406,55 @@ textarea {
   transform: scaleX(1);
 }
 
+.i-search {
+  --icon: url("/static/icons/search.svg");
+}
+
+.i-theme {
+  --icon: url("/static/icons/moon.svg");
+}
+
+.i-theme[aria-pressed="true"] {
+  --icon: url("/static/icons/sun.svg");
+}
+
+.i-deals {
+  --icon: url("/static/icons/badge-percent.svg");
+}
+
+.i-ended {
+  --icon: url("/static/icons/history.svg");
+}
+
+.i-wants {
+  --icon: url("/static/icons/bookmark.svg");
+}
+
+.i-add {
+  --icon: url("/static/icons/plus.svg");
+}
+
+.i-export {
+  --icon: url("/static/icons/file-down.svg");
+}
+
+.i-summary {
+  --icon: url("/static/icons/mail.svg");
+}
+
+.i-runs {
+  --icon: url("/static/icons/activity.svg");
+}
+
+.i-more {
+  --icon: url("/static/icons/ellipsis.svg");
+}
+
+/* The phone's More menu; on a wide screen its three pages sit in the bar itself. */
+.top .more {
+  display: none;
+}
+
 .top .tools {
   display: flex;
   gap: 8px;
@@ -1322,7 +1462,10 @@ textarea {
 }
 
 .top .tools button {
-  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
   padding: 6px 12px;
   border-radius: 99px;
   color: var(--muted);
@@ -1330,6 +1473,154 @@ textarea {
 
 .top .tools button:hover {
   color: var(--ink);
+}
+
+.top .tools .i-theme {
+  width: 40px;
+  justify-content: center;
+  padding: 0;
+}
+
+/* Icons are Lucide (ISC), drawn as masks so they take the text colour. */
+.top .tools button::before,
+.top .tabs a::before,
+.top .more summary::before {
+  content: "";
+  flex: none;
+  width: 18px;
+  height: 18px;
+  background: currentcolor;
+  mask: var(--icon) center / contain no-repeat;
+}
+
+.top .tabs a::before {
+  display: none;
+}
+
+/* On a phone the pages move to a tab bar at the foot, in reach of a thumb: four tabs and More. */
+@media (width <= 600px) {
+  body {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+
+  /* No blur here: a backdrop filter would make the header the frame the fixed tab bar sits in. */
+  .top {
+    padding: 8px 12px;
+    background: var(--bg);
+    backdrop-filter: none;
+  }
+
+  .top .tools .word,
+  .top .tools kbd {
+    display: none;
+  }
+
+  .top .tools .i-search {
+    width: 40px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .top nav.tabs {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0;
+    padding: 4px max(4px, env(safe-area-inset-right))
+      env(safe-area-inset-bottom) max(4px, env(safe-area-inset-left));
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+  }
+
+  .top nav.tabs .wide {
+    display: none;
+  }
+
+  .top .tabs a,
+  .top .more summary {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 56px;
+    padding: 6px 2px;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .top .tabs a::before,
+  .top .more summary::before {
+    display: block;
+    width: 22px;
+    height: 22px;
+  }
+
+  .top .tabs a::after {
+    display: none;
+  }
+
+  .top .tabs > a[aria-current="page"],
+  .top .more summary.here {
+    color: var(--ink);
+  }
+
+  .top .tabs > a[aria-current="page"]::before,
+  .top .more summary.here::before {
+    background: var(--accent);
+  }
+
+  .top .more {
+    display: block;
+    position: relative;
+  }
+
+  .top .more summary {
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .top .more summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .top .more-menu {
+    position: absolute;
+    right: 4px;
+    bottom: calc(100% + 8px);
+    display: grid;
+    min-width: 180px;
+    padding: 6px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
+  .top .more-menu a {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    min-height: 48px;
+    padding: 0 12px;
+    border-radius: var(--radius-sm);
+    font-size: 1rem;
+    color: var(--ink);
+  }
+
+  .top .more-menu a::before {
+    width: 20px;
+    height: 20px;
+  }
+
+  .top .more-menu a[aria-current="page"] {
+    background: var(--well);
+  }
 }
 
 kbd {
@@ -1354,7 +1645,7 @@ kbd {
 
 @media (width <= 600px) {
   html {
-    scroll-padding-top: 120px;
+    scroll-padding-top: 72px;
   }
 
   main {
@@ -1384,15 +1675,6 @@ kbd {
 
   .facts th {
     width: 6rem;
-  }
-
-  .top .tools kbd {
-    display: none;
-  }
-
-  .top nav {
-    order: 3;
-    width: 100%;
   }
 }
 

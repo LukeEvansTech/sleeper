@@ -953,3 +953,24 @@ def test_print_set():
     assert export_print_set({"set": "FIN", "who": "Mog Cie #5"}) == "FIN"
     assert export_print_set({"set": "FIN", "who": "Tifa Lockhart #0567 Chocobo Track"}) == "FIN"
     assert export_print_set({"set": "DBS", "who": "Vegito SPR signature"}) == "DBS"
+
+
+def test_brand_assets_and_phone_nav(env):
+    _, _, c = env
+    page = c.get("/ops").text
+    assert 'rel="manifest"' in page and 'src="/static/mark.svg"' in page
+    assert '<summary class="i-more here">' in page
+    assert c.get("/static/manifest.webmanifest").json()["icons"][0]["src"] == "/static/icon-192.png"
+    for name in (
+        "icon.svg",
+        "icon-192.png",
+        "icon-512.png",
+        "apple-touch-icon.png",
+        "icons/search.svg",
+    ):
+        assert c.get(f"/static/{name}").status_code == 200
+    home = c.get("/").text
+    assert '<details class="filter-more" open>' in home and "document.currentScript" in home
+    # A filter that is on keeps the fold open on a phone, and says how many are on.
+    on = c.get("/?show=deals&sort=price").text
+    assert "1 on" in on and "document.currentScript" not in on

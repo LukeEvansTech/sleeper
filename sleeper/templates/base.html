@@ -2,8 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#eef0f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1620" media="(prefers-color-scheme: dark)">
 <title>{% block title %}sleeper{% endblock %}</title>
+<meta name="apple-mobile-web-app-title" content="sleeper">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<link rel="manifest" href="/static/manifest.webmanifest">
 <link rel="preload" href="/static/fonts/Archivo-VF.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/app.css">
 <script>
@@ -13,24 +19,34 @@
 <script src="/static/app.js" defer></script>
 </head>
 <body>
+<a class="skip" href="#main">Skip to the page</a>
 <header class="top">
-  <a class="brand" href="/">sleeper</a>
-  <nav>
-    {% set here = request.url.path %}
-    <a href="/" {{ 'aria-current=page' if here == '/' or here.startswith('/deal') }}>Deals</a>
-    <a href="/ended" {{ 'aria-current=page' if here.startswith('/ended') }}>Ended</a>
-    <a href="/wants" {{ 'aria-current=page' if here.startswith('/wants') and here != '/wants/new' }}>Wants</a>
-    <a href="/wants/new" {{ 'aria-current=page' if here == '/wants/new' }}>Add card</a>
-    <a href="/export" {{ 'aria-current=page' if here.startswith('/export') }}>Export</a>
-    <a href="/summary" {{ 'aria-current=page' if here.startswith('/summary') }}>Summary</a>
-    <a href="/ops" {{ 'aria-current=page' if here.startswith('/ops') or here.startswith('/run') }}>Runs</a>
+  <a class="brand" href="/"><img class="brand-mark" src="/static/mark.svg" alt="" width="22" height="34">sleeper</a>
+  {% set here = request.url.path %}
+  {% set in_more = here.startswith('/export') or here.startswith('/summary') or here.startswith('/ops') or here.startswith('/run') %}
+  <nav class="tabs" aria-label="Pages">
+    <a class="i-deals" href="/" {{ 'aria-current=page' if here == '/' or here.startswith('/deal') }}>Deals</a>
+    <a class="i-ended" href="/ended" {{ 'aria-current=page' if here.startswith('/ended') }}>Ended</a>
+    <a class="i-wants" href="/wants" {{ 'aria-current=page' if here.startswith('/wants') and here != '/wants/new' }}>Wants</a>
+    <a class="i-add" href="/wants/new" {{ 'aria-current=page' if here == '/wants/new' }}>Add card</a>
+    <a class="i-export wide" href="/export" {{ 'aria-current=page' if here.startswith('/export') }}>Export</a>
+    <a class="i-summary wide" href="/summary" {{ 'aria-current=page' if here.startswith('/summary') }}>Summary</a>
+    <a class="i-runs wide" href="/ops" {{ 'aria-current=page' if here.startswith('/ops') or here.startswith('/run') }}>Runs</a>
+    <details class="more">
+      <summary class="i-more{{ ' here' if in_more }}">More</summary>
+      <div class="more-menu">
+        <a class="i-export" href="/export" {{ 'aria-current=page' if here.startswith('/export') }}>Export</a>
+        <a class="i-summary" href="/summary" {{ 'aria-current=page' if here.startswith('/summary') }}>Summary</a>
+        <a class="i-runs" href="/ops" {{ 'aria-current=page' if here.startswith('/ops') or here.startswith('/run') }}>Runs</a>
+      </div>
+    </details>
   </nav>
   <div class="tools">
-    <button type="button" data-open-search aria-keyshortcuts="Meta+K Control+K">Search<kbd>⌘K</kbd></button>
-    <button type="button" data-theme-toggle aria-label="Switch between light and dark">Dark</button>
+    <button type="button" class="i-search" data-open-search aria-label="Search" aria-keyshortcuts="Meta+K Control+K"><span class="word">Search</span><kbd>⌘K</kbd></button>
+    <button type="button" class="i-theme" data-theme-toggle aria-label="Dark theme" aria-pressed="false"></button>
   </div>
 </header>
-<main>
+<main id="main">
 {% block body %}{% endblock %}
 </main>
 <footer class="foot">sleeper {{ version }}. Prices are eBay.com US listings, landed at the Oregon forwarding address.</footer>

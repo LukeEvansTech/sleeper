@@ -8,7 +8,7 @@ anyio==4.16.0
     # via starlette
 apprise==2.3.0
     # via -r requirements.in
-certifi==2026.10.23
+certifi==2026.11.20
     # via
     #   apprise
     #   requests

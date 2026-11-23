@@ -78,6 +78,7 @@ def test_new_view_and_json_api(env, monkeypatch):
     new = client.get("/api/v1/deals?show=new").json()
     assert new["sort"] == "new" and [d["item_id"] for d in new["deals"]] == ["111"]
     page = client.get("/?show=new&sort=new")
+    assert "Vegito (1)</option>" in page.text  # the card picker counts new deals only
     assert "1 new deal<" in page.text and "/deal/333/psa" not in page.text
     assert 'href="?show=new&amp;sort=new"' in client.get("/").text
     assert "/static/app.css?v=" in page.text and "/static/app.js?v=" in page.text

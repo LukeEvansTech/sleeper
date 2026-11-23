@@ -14,7 +14,8 @@ One copy of a wanted card for sale on eBay, as either a graded slab or a raw car
 _Avoid_: Item, result, lot
 
 **Deal**:
-A listing whose landed price is at or under the ceiling set for its want.
+A listing under the ceiling whose landed price also beats recent sold prices for the card, or a
+raw copy that is worth buying to grade. Under the ceiling alone is not enough.
 _Avoid_: Bargain, hit, match
 
 **New deal**:

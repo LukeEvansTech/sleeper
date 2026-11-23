@@ -245,10 +245,12 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         """Every enabled want (and the one on screen, paused or not) with its live listing count
         (deals only on the deals view), by set: the card picker on the listings page."""
         where = f"active = 1 AND deal = 1 AND {SHOWN}" if show != "all" else "active = 1"
+        args = [new_since()] if show == "new" else []
+        where += " AND first_seen >= ?" if args else ""
         live = {
             r["want_id"]: r["n"]
             for r in db.all(
-                f"SELECT want_id, count(*) AS n FROM listings WHERE {where} GROUP BY want_id"
+                f"SELECT want_id, count(*) AS n FROM listings WHERE {where} GROUP BY want_id", *args
             )
         }
         by_set: dict[str, list[dict]] = {}

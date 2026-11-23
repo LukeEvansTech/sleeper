@@ -58,7 +58,9 @@ def outcome_json(r: dict) -> dict | None:
     return {
         "status": o["status"],
         "ended": o.get("ended_at"),
-        "final": o.get("final_usd"),
+        # eBay shows a closing price for an auction only: a fixed-price sale leaves its asking price
+        "final": o.get("final_usd") if r.get("auction") and o.get("bids") else None,
+        "asking": o.get("final_usd") if not r.get("auction") else None,
         "bids": o.get("bids"),
         "hindsight": r.get("hindsight"),
     }
@@ -88,7 +90,7 @@ def listing_json(r: dict, since: str, gixen: Callable[[str, float | None], str])
         "offers": bool(r.get("obo")),
         "bids": r.get("bids") or "",
         "time_left": r.get("time_left") or "",
-        "ends": r.get("ends"),
+        "ends": stamp(r.get("ends")),
         "max_bid": v.snipe if r.get("auction") and live else None,
         "median": v.median,
         "low": v.low,

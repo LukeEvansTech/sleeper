@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0f1620"/>
+  <g transform="translate(256 256) scale(5.2) translate(-32 -32)">
+  <defs>
+    <linearGradient id="foil" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7be0d6"/>
+      <stop offset="0.35" stop-color="#8fd3ff"/>
+      <stop offset="0.65" stop-color="#f6a6c8"/>
+      <stop offset="1" stop-color="#ffe08a"/>
+    </linearGradient>
+    <mask id="moon">
+      <rect x="12" y="0" width="40" height="64" fill="#fff"/>
+      <circle cx="37.5" cy="34.5" r="10" fill="#000"/>
+    </mask>
+  </defs>
+  <path fill="#1f8f99" fill-rule="evenodd" d="M19 2H45A5 5 0 0 1 50 7V57A5 5 0 0 1 45 62H19A5 5 0 0 1 14 57V7A5 5 0 0 1 19 2ZM18.5 5.5A1 1 0 0 0 17.5 6.5V14A1 1 0 0 0 18.5 15H45.5A1 1 0 0 0 46.5 14V6.5A1 1 0 0 0 45.5 5.5ZM18.5 18A1 1 0 0 0 17.5 19V57.5A1 1 0 0 0 18.5 58.5H45.5A1 1 0 0 0 46.5 57.5V19A1 1 0 0 0 45.5 18Z"/>
+  <rect x="20" y="9" width="13" height="2.5" rx="1.25" fill="#1f8f99"/>
+  <rect x="38" y="7.5" width="6.5" height="5.5" rx="1" fill="#1f8f99"/>
+  <circle cx="31" cy="39" r="12" fill="url(#foil)" mask="url(#moon)"/>
+  </g>
+</svg>

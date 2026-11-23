@@ -36,23 +36,28 @@
   <span class="toggle" role="group" aria-label="Graded or raw">
     {% for k, label in [('', 'All'), ('psa', 'Graded'), ('raw', 'Raw')] %}<a href="{{ qs(kind_=k) }}" class="{{ 'on' if kind == k }}"{{ ' aria-current="true"' | safe if kind == k }}>{{ label }} <span class="n">{{ counts.kind[k] }}</span></a>{% endfor %}
   </span>
-  <span class="toggle" role="group" aria-label="Buying format">
-    {% for b, label in [('', 'Any'), ('bin', 'Buy now'), ('auction', 'Auction'), ('offers', 'Offers')] %}<a href="{{ qs(buy_=b) }}" class="{{ 'on' if buy == b }}"{{ ' aria-current="true"' | safe if buy == b }}>{{ label }} <span class="n">{{ counts.buy[b] }}</span></a>{% endfor %}
-  </span>
-  <span class="toggle" role="group" aria-labelledby="sort-l">
-    <span class="tl" id="sort-l">Sort</span>
-    {% for o, label in [('deal', 'Best'), ('price', 'Cheapest'), ('ending', 'Ending'), ('new', 'Newest')] %}<a href="{{ qs(sort_=o) }}" class="{{ 'on' if sort == o }}"{{ ' aria-current="true"' | safe if sort == o }}>{{ label }}</a>{% endfor %}
-  </span>
-  <span class="toggle" role="group" aria-labelledby="group-l">
-    <span class="tl" id="group-l">Group by</span>
-    {% for o, label in group_options %}<a href="{{ qs(group_=o) }}" class="{{ 'on' if group == o }}"{{ ' aria-current="true"' | safe if group == o }}>{{ label }}</a>{% endfor %}
-  </span>
-  {% if not cur_want %}
-  <span class="toggle">
-    <a href="{{ qs(set_='') }}" class="{{ 'on' if not cur_set }}">All sets</a>
-    {% for x in sets %}<a href="{{ qs(set_=x) }}" class="{{ 'on' if x == cur_set }}">{{ x }}</a>{% endfor %}
-  </span>
-  {% endif %}
+  {% set extra = (1 if buy else 0) + (1 if sort != 'deal' else 0) + (1 if group != 'rating' else 0) + (1 if cur_set and not cur_want else 0) %}
+  <details class="filter-more" open>
+    <summary>More filters{% if extra %} <span class="n">{{ extra }} on</span>{% endif %}</summary>
+    <span class="toggle" role="group" aria-label="Buying format">
+      {% for b, label in [('', 'Any'), ('bin', 'Buy now'), ('auction', 'Auction'), ('offers', 'Offers')] %}<a href="{{ qs(buy_=b) }}" class="{{ 'on' if buy == b }}"{{ ' aria-current="true"' | safe if buy == b }}>{{ label }} <span class="n">{{ counts.buy[b] }}</span></a>{% endfor %}
+    </span>
+    <span class="toggle" role="group" aria-labelledby="sort-l">
+      <span class="tl" id="sort-l">Sort</span>
+      {% for o, label in [('deal', 'Best'), ('price', 'Cheapest'), ('ending', 'Ending'), ('new', 'Newest')] %}<a href="{{ qs(sort_=o) }}" class="{{ 'on' if sort == o }}"{{ ' aria-current="true"' | safe if sort == o }}>{{ label }}</a>{% endfor %}
+    </span>
+    <span class="toggle" role="group" aria-labelledby="group-l">
+      <span class="tl" id="group-l">Group by</span>
+      {% for o, label in group_options %}<a href="{{ qs(group_=o) }}" class="{{ 'on' if group == o }}"{{ ' aria-current="true"' | safe if group == o }}>{{ label }}</a>{% endfor %}
+    </span>
+    {% if not cur_want %}
+    <span class="toggle">
+      <a href="{{ qs(set_='') }}" class="{{ 'on' if not cur_set }}">All sets</a>
+      {% for x in sets %}<a href="{{ qs(set_=x) }}" class="{{ 'on' if x == cur_set }}">{{ x }}</a>{% endfor %}
+    </span>
+    {% endif %}
+  </details>
+  {% if not extra %}<script>if (matchMedia("(width <= 600px)").matches) document.currentScript.previousElementSibling.open = false;</script>{% endif %}
 </nav>
 <form class="pick" method="get" action="/" data-pick>
   <input type="hidden" name="show" value="{{ show }}">

@@ -21,7 +21,7 @@
 <body>
 <a class="skip" href="#main">Skip to the page</a>
 <header class="top">
-  <a class="brand" href="/"><img src="/static/mark.svg" alt="" width="22" height="34">sleeper</a>
+  <a class="brand" href="/"><img class="brand-mark" src="/static/mark.svg" alt="" width="22" height="34">sleeper</a>
   {% set here = request.url.path %}
   {% set in_more = here.startswith('/export') or here.startswith('/summary') or here.startswith('/ops') or here.startswith('/run') %}
   <nav class="tabs" aria-label="Pages">

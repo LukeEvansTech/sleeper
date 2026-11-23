@@ -6,20 +6,20 @@ loud thing is the foil edge on a steal. `sleeper/static/app.css` is the source o
 
 ## Palette
 
-| Token     | Light     | Dark      | Job                                                           |
-| --------- | --------- | --------- | ------------------------------------------------------------- |
-| `bg`      | `#eef0f2` | `#0f1620` | Page ground                                                   |
-| `panel`   | `#ffffff` | `#172231` | Tiles, menus, the phone's tab bar                             |
-| `well`    | `#e3e7eb` | `#0c121a` | Segmented controls, the art well behind a card                |
-| `line`    | `#d5dae0` | `#263345` | Hairlines and tile edges, 1px                                 |
-| `ink`     | `#15202b` | `#e6ebf1` | Text                                                          |
-| `muted`   | `#525d69` | `#93a1b1` | Secondary text and labels                                     |
-| `accent`  | `#0a6870` | `#3fb5bf` | Links, the primary button, the current tab's icon, focus ring |
-| `great`   | `#14703d` | `#45c27a` | A great deal                                                  |
-| `good`    | `#36702a` | `#8cc56b` | A good deal                                                   |
-| `fair`    | `#835800` | `#e0a63a` | A fair price; warnings                                        |
-| `high`    | `#b02e18` | `#f0705a` | Over the ceiling; danger                                      |
-| `foil`    | conic     | conic     | The edge of a steal and the moon in the mark, nothing else    |
+| Token    | Light     | Dark      | Job                                                           |
+| -------- | --------- | --------- | ------------------------------------------------------------- |
+| `bg`     | `#eef0f2` | `#0f1620` | Page ground                                                   |
+| `panel`  | `#ffffff` | `#172231` | Tiles, menus, the phone's tab bar                             |
+| `well`   | `#e3e7eb` | `#0c121a` | Segmented controls, the art well behind a card                |
+| `line`   | `#d5dae0` | `#263345` | Hairlines and tile edges, 1px                                 |
+| `ink`    | `#15202b` | `#e6ebf1` | Text                                                          |
+| `muted`  | `#525d69` | `#93a1b1` | Secondary text and labels                                     |
+| `accent` | `#0a6870` | `#3fb5bf` | Links, the primary button, the current tab's icon, focus ring |
+| `great`  | `#14703d` | `#45c27a` | A great deal                                                  |
+| `good`   | `#36702a` | `#8cc56b` | A good deal                                                   |
+| `fair`   | `#835800` | `#e0a63a` | A fair price; warnings                                        |
+| `high`   | `#b02e18` | `#f0705a` | Over the ceiling; danger                                      |
+| `foil`   | conic     | conic     | The edge of a steal and the moon in the mark, nothing else    |
 
 The deal colours are states, never decoration.
 

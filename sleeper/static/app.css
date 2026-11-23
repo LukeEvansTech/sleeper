@@ -1336,7 +1336,7 @@ textarea {
   letter-spacing: -0.04em;
 }
 
-.brand img {
+.brand-mark {
   display: block;
   width: 22px;
   height: 34px;
@@ -1391,6 +1391,50 @@ textarea {
   transform: scaleX(1);
 }
 
+.i-search {
+  --icon: url("/static/icons/search.svg");
+}
+
+.i-theme {
+  --icon: url("/static/icons/moon.svg");
+}
+
+.i-theme[aria-pressed="true"] {
+  --icon: url("/static/icons/sun.svg");
+}
+
+.i-deals {
+  --icon: url("/static/icons/badge-percent.svg");
+}
+
+.i-ended {
+  --icon: url("/static/icons/history.svg");
+}
+
+.i-wants {
+  --icon: url("/static/icons/bookmark.svg");
+}
+
+.i-add {
+  --icon: url("/static/icons/plus.svg");
+}
+
+.i-export {
+  --icon: url("/static/icons/file-down.svg");
+}
+
+.i-summary {
+  --icon: url("/static/icons/mail.svg");
+}
+
+.i-runs {
+  --icon: url("/static/icons/activity.svg");
+}
+
+.i-more {
+  --icon: url("/static/icons/ellipsis.svg");
+}
+
 /* The phone's More menu; on a wide screen its three pages sit in the bar itself. */
 .top .more {
   display: none;
@@ -1436,50 +1480,6 @@ textarea {
 
 .top .tabs a::before {
   display: none;
-}
-
-.i-search {
-  --icon: url("/static/icons/search.svg");
-}
-
-.i-theme {
-  --icon: url("/static/icons/moon.svg");
-}
-
-.i-theme[aria-pressed="true"] {
-  --icon: url("/static/icons/sun.svg");
-}
-
-.i-deals {
-  --icon: url("/static/icons/badge-percent.svg");
-}
-
-.i-ended {
-  --icon: url("/static/icons/history.svg");
-}
-
-.i-wants {
-  --icon: url("/static/icons/bookmark.svg");
-}
-
-.i-add {
-  --icon: url("/static/icons/plus.svg");
-}
-
-.i-export {
-  --icon: url("/static/icons/file-down.svg");
-}
-
-.i-summary {
-  --icon: url("/static/icons/mail.svg");
-}
-
-.i-runs {
-  --icon: url("/static/icons/activity.svg");
-}
-
-.i-more {
-  --icon: url("/static/icons/ellipsis.svg");
 }
 
 /* On a phone the pages move to a tab bar at the foot, in reach of a thumb: four tabs and More. */
@@ -1660,7 +1660,6 @@ kbd {
   .facts th {
     width: 6rem;
   }
-
 }
 
 @media (prefers-reduced-motion: reduce) {

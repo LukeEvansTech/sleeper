@@ -390,6 +390,11 @@ button,
   .filter-more[open] > summary {
     display: none;
   }
+
+  /* Flatten the browser's own wrapper too, so each pill row is a flex item of .filters. */
+  .filter-more::details-content {
+    display: contents;
+  }
 }
 
 @media (width <= 600px) {

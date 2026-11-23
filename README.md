@@ -95,12 +95,20 @@ uid 65532 and works with a read-only root filesystem as long as `/tmp` is writab
 
 ## API
 
-| Route                  | Purpose                                                                                   |
-| ---------------------- | ----------------------------------------------------------------------------------------- |
-| `POST /api/import`     | `{wants, defaults, gem_rates, block, pop: {fetched, rows}}`; wants match on set and name. |
-| `POST /api/sold`       | `{sold: {item_id: {set, who, kind, star, usd, date, title}}}`.                            |
-| `PUT /api/refs/<name>` | Upload one official-art image (JPEG or PNG).                                              |
-| `GET /health`          | Process is up.                                                                            |
-| `GET /metrics`         | `sleeper_last_success_timestamp_seconds` and friends, for alerting.                       |
+| Route                                    | Purpose                                                                                                                         |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/import`                       | `{wants, defaults, gem_rates, block, pop: {fetched, rows}}`; wants match on set and name.                                       |
+| `POST /api/sold`                         | `{sold: {item_id: {set, who, kind, star, usd, date, title}}}`.                                                                  |
+| `PUT /api/refs/<name>`                   | Upload one official-art image (JPEG or PNG).                                                                                    |
+| `GET /api/v1/deals`                      | Live listings as JSON. `show` is `deals`, `new` or `all`; `kind`, `buy`, `sort`, `max`, `set` and `want` filter as on the page. |
+| `GET /api/v1/deals/<item>/<kind>`        | One listing with its reasons, photos, sold prices and the card's other listings.                                                |
+| `POST /api/v1/deals/<item>/<kind>/block` | Take a listing off the live lists. Optional body `{reason}`.                                                                    |
+| `GET /api/v1/ended`                      | Deals whose listing has ended, with how each finished.                                                                          |
+| `GET /api/v1/wants`                      | Every want by set, with its live listing and deal counts.                                                                       |
+| `GET /health`                            | Process is up.                                                                                                                  |
+| `GET /metrics`                           | `sleeper_last_success_timestamp_seconds` and friends, for alerting.                                                             |
+
+The `/api/v1` routes give a phone app the same figures the pages show. Prices are US dollars and
+`total` is the landed price.
 
 The UI has no login: run it behind an internal-only route.

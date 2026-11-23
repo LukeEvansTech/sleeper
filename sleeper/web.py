@@ -18,14 +18,14 @@ from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Red
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import export, match, notify, photos, summary, sweep, value
+from . import api, export, match, notify, photos, summary, sweep, value
 from .config import Settings
 from .db import DB
 from .groups import GROUPS, grouped, moved, ordered_sets
 
 HERE = Path(__file__).resolve().parent
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,120}$")
-RATING_ORDER = {"great": 0, "good": 1, "unknown": 2, "fair": 3, "high": 4}
+RATING_ORDER = api.RATING_ORDER
 SET_ORDER = "set_order"  # kv: set names in the order the pages list them
 # A deal whose photo shows another card stays off the deals list, as it stays out of alerts.
 SHOWN = "coalesce(json_extract(art, '$.verdict'), '') != 'differs'"
@@ -103,6 +103,15 @@ def price_cap(v: str) -> int:
     return cap if 0 < cap <= PRICE_SCALE[-1] else 0
 
 
+SHOWS = ("deals", "new", "all")
+NEW_HOURS = 24  # the New view: deals first seen this recently
+
+
+def new_since() -> str:
+    """The first_seen (the sweep's naive local time) a deal needs to count as new."""
+    return (dt.datetime.now() - dt.timedelta(hours=NEW_HOURS)).isoformat(timespec="seconds")
+
+
 SORTS: dict[str, Callable[[dict], Any]] = {
     "deal": lambda r: (not r["deal"], RATING_ORDER.get(r["v"].rating, 9), r["v"].total),
     "price": lambda r: r["v"].total,
@@ -149,6 +158,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
     tpl.env.globals["caution"] = match.caution
     tpl.env.globals["landed"] = lambda r, usd: usd + (r.get("ship") or 0)
     tpl.env.globals["version"] = s.version
+    tpl.env.globals["new_hours"] = NEW_HOURS
 
     def when(iso: str) -> str:
         """An auction end in the app's timezone: '14:05 today', 'Fri 09:10'."""
@@ -234,11 +244,13 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
     def card_index(show: str, current: int = 0) -> list[tuple[str, list[dict]]]:
         """Every enabled want (and the one on screen, paused or not) with its live listing count
         (deals only on the deals view), by set: the card picker on the listings page."""
-        where = f"active = 1 AND deal = 1 AND {SHOWN}" if show == "deals" else "active = 1"
+        where = f"active = 1 AND deal = 1 AND {SHOWN}" if show != "all" else "active = 1"
+        args = [new_since()] if show == "new" else []
+        where += " AND first_seen >= ?" if args else ""
         live = {
             r["want_id"]: r["n"]
             for r in db.all(
-                f"SELECT want_id, count(*) AS n FROM listings WHERE {where} GROUP BY want_id"
+                f"SELECT want_id, count(*) AS n FROM listings WHERE {where} GROUP BY want_id", *args
             )
         }
         by_set: dict[str, list[dict]] = {}
@@ -376,18 +388,10 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             f"sleeper_wants {wants['n'] if wants else 0}\n"
         )
 
-    @app.get("/", response_class=HTMLResponse)
-    def home(
-        request: Request,
-        set: str = "",
-        kind: str = "",
-        show: str = "deals",
-        want: int = 0,
-        buy: str = "",
-        sort: str = "deal",
-        max: str = "",  # pylint: disable=redefined-builtin
-        group: str = "rating",
-    ):
+    def listed(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        show: str, want: int, set_: str, kind: str, buy: str, sort: str, max_: str
+    ) -> dict:
+        """The live listings a set of filters shows, for the listings page and the API."""
         sql = "SELECT * FROM listings WHERE active = 1"
         args: list = []
         cur_want = db.want(want) if want else None
@@ -396,12 +400,16 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         if cur_want:
             sql += " AND want_id = ?"
             args.append(want)
-        if show == "deals":
+        show = show if show in SHOWS else "all"
+        if show != "all":
             sql += f" AND deal = 1 AND {SHOWN}"
+        if show == "new":
+            sql += " AND first_seen >= ?"
+            args.append(new_since())
         rows = scored([dict(r) for r in db.all(sql, *args)])
-        if set and not cur_want:  # a card picked from another set keeps its own listings
-            rows = [r for r in rows if r["want"].get("set") == set]
-        cap = price_cap(max)
+        if set_ and not cur_want:  # a card picked from another set keeps its own listings
+            rows = [r for r in rows if r["want"].get("set") == set_]
+        cap = price_cap(max_)
         if cap:
             rows = [r for r in rows if r["v"].total <= cap]
         kind = kind if kind in ("psa", "raw") else ""
@@ -420,6 +428,32 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         }
         rows = [r for r in rows if (not kind or r["kind"] == kind) and BUY_FILTERS[buy](r)]
         rows.sort(key=SORTS[sort])
+        return {
+            "rows": rows,
+            "counts": counts,
+            "want": cur_want,
+            "show": show,
+            "kind": kind,
+            "buy": buy,
+            "sort": sort,
+            "cap": cap,
+        }
+
+    @app.get("/", response_class=HTMLResponse)
+    def home(
+        request: Request,
+        set: str = "",
+        kind: str = "",
+        show: str = "deals",
+        want: int = 0,
+        buy: str = "",
+        sort: str = "deal",
+        max: str = "",  # pylint: disable=redefined-builtin
+        group: str = "rating",
+    ):
+        got = listed(show, want, set, kind, buy, sort, max)
+        rows, counts, cur_want, cap = got["rows"], got["counts"], got["want"], got["cap"]
+        show, kind, buy, sort = got["show"], got["kind"], got["buy"], got["sort"]
         group = group if group in GROUPS else "rating"
         set_order = db.get(SET_ORDER, [])
         sets = ordered_sets((w.get("set", "") for w in db.wants()), set_order)
@@ -454,8 +488,7 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             running=sweep.LOCK.locked(),
         )
 
-    @app.get("/ended", response_class=HTMLResponse)
-    def ended(request: Request):
+    def ended_rows() -> dict:
         """Deals and alerts whose listing has since ended, newest first, with how each finished."""
         rows = scored(
             [
@@ -474,10 +507,14 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
             k: sum(1 for r in rows if (r.get("hindsight") or {}).get("result") == k)
             for k in ("open", "range", "lost")
         }
-        return page(request, "ended.html", rows=rows[:400], total=len(rows), sold=sold, tally=tally)
+        return {"rows": rows[:400], "total": len(rows), "sold": sold, "tally": tally}
 
-    @app.get("/deal/{item_id}/{kind}", response_class=HTMLResponse)
-    def deal(request: Request, item_id: str, kind: str):
+    @app.get("/ended", response_class=HTMLResponse)
+    def ended(request: Request):
+        return page(request, "ended.html", **ended_rows())
+
+    def deal_ctx(item_id: str, kind: str) -> dict:
+        """One listing with everything its deal page shows."""
         row = db.one("SELECT * FROM listings WHERE item_id = ? AND kind = ?", item_id, kind)
         if not row:
             raise HTTPException(404, "listing not found")
@@ -506,27 +543,31 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
                 )
             ]
         )
-        refs = [p.name for p in photos.refs_for(w, s.refs_dir)]
-        return page(
-            request,
-            "deal.html",
-            r=r,
-            w=w,
-            card_comps=card_comps,
-            recent=recent,
-            others=others,
-            pop=value.pop_for(pop, w)[:10],
-            refs=refs,
-            links=buy_links(w),
-            alerted=db.one("SELECT * FROM alerts WHERE item_id = ? AND kind = ?", item_id, kind),
-        )
+        return {
+            "r": r,
+            "w": w,
+            "card_comps": card_comps,
+            "recent": recent,
+            "others": others,
+            "pop": value.pop_for(pop, w)[:10],
+            "refs": [p.name for p in photos.refs_for(w, s.refs_dir)],
+            "links": buy_links(w),
+            "alerted": db.one("SELECT * FROM alerts WHERE item_id = ? AND kind = ?", item_id, kind),
+        }
 
-    @app.post("/deal/{item_id}/{kind}/block")
-    def block(item_id: str, kind: str, reason: str = Form("not wanted")):
+    @app.get("/deal/{item_id}/{kind}", response_class=HTMLResponse)
+    def deal(request: Request, item_id: str, kind: str):
+        return page(request, "deal.html", **deal_ctx(item_id, kind))
+
+    def block_listing(item_id: str, reason: str) -> None:
         db.run(
             "INSERT OR REPLACE INTO blocked (item_id, reason) VALUES (?, ?)", item_id, reason[:200]
         )
         db.run("UPDATE listings SET active = 0 WHERE item_id = ?", item_id)
+
+    @app.post("/deal/{item_id}/{kind}/block")
+    def block(item_id: str, kind: str, reason: str = Form("not wanted")):
+        block_listing(item_id, reason)
         return RedirectResponse(f"/deal/{item_id}/{kind}", status_code=303)
 
     @app.get("/run/{run_id}", response_class=HTMLResponse)
@@ -563,6 +604,17 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         )
 
     # --- wants ---
+    api.add_routes(
+        app,
+        db,
+        s,
+        api.Views(
+            listed, ended_rows, deal_ctx, block_listing, scored, lambda w: set_of(w.get("skip"))
+        ),
+        new_since,
+        NEW_HOURS,
+        gixen_link,
+    )
     export.add_routes(app, db, s.refs_dir, tpl, SET_ORDER, lambda w: set_of(w.get("skip")))
 
     @app.get("/wants", response_class=HTMLResponse)
@@ -792,50 +844,6 @@ def create_app(s: Settings, db: DB | None = None, start_scheduler: bool = False)
         return PlainTextResponse(res)
 
     # --- import, images ---
-    @app.get("/api/search")
-    def api_search() -> dict:
-        """What the Cmd-K search filters in the browser: every want and every live deal."""
-        counts = {
-            r["want_id"]: (r["n"], r["d"] or 0)
-            for r in db.all(
-                f"SELECT want_id, count(*) AS n, sum(deal AND {SHOWN}) AS d FROM listings WHERE active = 1 "
-                "GROUP BY want_id"
-            )
-        }
-        wants_out = []
-        for w in db.wants():
-            refs = photos.refs_for(w, s.refs_dir)
-            kept = [r for r in refs if r.name not in set_of(w.get("skip"))] or refs
-            n, d = counts.get(w["_id"], (0, 0))
-            wants_out.append(
-                {
-                    "name": w["who"],
-                    "set": w.get("set", ""),
-                    "href": f"/?want={w['_id']}&show=all",
-                    "img": f"/refs/{kept[0].name}" if kept else "",
-                    "side": f"{d} deal{'s' if d != 1 else ''}, {n} live",
-                }
-            )
-        deals = scored(
-            [
-                dict(r)
-                for r in db.all(f"SELECT * FROM listings WHERE active = 1 AND deal = 1 AND {SHOWN}")
-            ]
-        )
-        deals.sort(key=lambda r: (RATING_ORDER.get(r["v"].rating, 9), r["v"].total))
-        deals_out = [
-            {
-                "name": r["want"]["who"],
-                "set": r["want"].get("set", ""),
-                "kind": "psa 10" if r["kind"] == "psa" else "raw",
-                "href": f"/deal/{r['item_id']}/{r['kind']}",
-                "img": ebay_img(r["img"], 140),
-                "side": f"${r['v'].total:,.2f} {r['v'].rating}",
-            }
-            for r in deals
-        ]
-        return {"wants": wants_out, "deals": deals_out}
-
     @app.post("/api/import")
     async def api_import(request: Request) -> dict:
         """Load a wantwatch export: {wants, defaults, block, gem_rates, pop: {fetched, rows}, sold}."""

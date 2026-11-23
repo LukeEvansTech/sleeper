@@ -92,6 +92,7 @@ def test_new_view_and_json_api(env, monkeypatch):
 
     wants = client.get("/api/v1/wants").json()
     assert wants["total"] == 1 and wants["sets"][0]["name"] == "DBS"
+    assert wants["defaults"] == db.defaults()
     assert wants["sets"][0]["wants"][0]["name"] == "Vegito"
     assert wants["sets"][0]["wants"][0]["deals"] >= 1
     assert wants["sets"][0]["wants"][0]["ceilings"] == {"graded": {"any": 1150}, "raw": {}}

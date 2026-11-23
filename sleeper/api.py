@@ -333,6 +333,8 @@ def add_routes(  # pylint: disable=too-many-locals,too-many-statements
         order = ordered_sets(by_set, db.get(SET_ORDER, []))
         return {
             "total": sum(len(v) for v in by_set.values()),
+            # the 1-star ceilings a want falls back on when it sets none of its own
+            "defaults": db.defaults(),
             "sets": [
                 {
                     "name": k,

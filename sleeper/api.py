@@ -1,4 +1,4 @@
-"""Read-only JSON for a phone app: the same listings, deal page and wants the web pages show.
+"""JSON for the page search and a phone app: the same listings, deal page and wants the web pages show.
 
 Every route sits under /api/v1 and answers with the figures the pages print, so the two never
 disagree. Like the pages it has no login: reach is limited by where the app is served.
@@ -22,6 +22,7 @@ from .groups import ordered_sets
 # and the kv key holding the order the pages list sets in.
 SHOWN = "coalesce(json_extract(art, '$.verdict'), '') != 'differs'"
 SET_ORDER = "set_order"
+RATING_ORDER = {"great": 0, "good": 1, "unknown": 2, "fair": 3, "high": 4}
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,7 @@ class Views:
     ended: Callable[[], dict]
     deal: Callable[[str, str], dict]
     block: Callable[[str, str], None]
+    scored: Callable[[list[dict]], list[dict]]
     skipped: Callable[[dict], set[str]]
 
 
@@ -119,6 +121,50 @@ def add_routes(  # pylint: disable=too-many-locals,too-many-statements
 ) -> None:
     def tile(r: dict, since: str) -> dict:
         return listing_json(r, since, gixen)
+
+    @app.get("/api/search")
+    def search() -> dict:
+        """What the Cmd-K search filters in the browser: every want and every live deal."""
+        counts = {
+            r["want_id"]: (r["n"], r["d"] or 0)
+            for r in db.all(
+                f"SELECT want_id, count(*) AS n, sum(deal AND {SHOWN}) AS d FROM listings WHERE active = 1 "
+                "GROUP BY want_id"
+            )
+        }
+        wants_out = []
+        for w in db.wants():
+            refs = photos.refs_for(w, s.refs_dir)
+            kept = [r for r in refs if r.name not in views.skipped(w)] or refs
+            n, d = counts.get(w["_id"], (0, 0))
+            wants_out.append(
+                {
+                    "name": w["who"],
+                    "set": w.get("set", ""),
+                    "href": f"/?want={w['_id']}&show=all",
+                    "img": f"/refs/{kept[0].name}" if kept else "",
+                    "side": f"{d} deal{'s' if d != 1 else ''}, {n} live",
+                }
+            )
+        deals = views.scored(
+            [
+                dict(r)
+                for r in db.all(f"SELECT * FROM listings WHERE active = 1 AND deal = 1 AND {SHOWN}")
+            ]
+        )
+        deals.sort(key=lambda r: (RATING_ORDER.get(r["v"].rating, 9), r["v"].total))
+        deals_out = [
+            {
+                "name": r["want"]["who"],
+                "set": r["want"].get("set", ""),
+                "kind": "psa 10" if r["kind"] == "psa" else "raw",
+                "href": f"/deal/{r['item_id']}/{r['kind']}",
+                "img": image(r["img"], 140),
+                "side": f"${r['v'].total:,.2f} {r['v'].rating}",
+            }
+            for r in deals
+        ]
+        return {"wants": wants_out, "deals": deals_out}
 
     @app.get("/api/v1/deals")
     def deals(  # pylint: disable=too-many-arguments,too-many-positional-arguments

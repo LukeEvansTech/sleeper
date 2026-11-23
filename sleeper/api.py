@@ -307,11 +307,12 @@ def add_routes(  # pylint: disable=too-many-locals,too-many-statements
                     # by star bucket; raw is null when raw copies are switched off for this want
                     "ceilings": {
                         "graded": w.get("max") or {},
+                        # a flat raw_max sits under rawmax, as match.ceiling reads them
                         "raw": (
                             None
                             if w.get("raw") is False
-                            else (w.get("rawmax") or {})
-                            | ({"any": w["raw_max"]} if w.get("raw_max") else {})
+                            else ({"any": w["raw_max"]} if "raw_max" in w else {})
+                            | (w.get("rawmax") or {})
                         ),
                     },
                 }
